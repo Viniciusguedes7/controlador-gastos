@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Controlador de Gastos
 
-## Getting Started
+Aplicação de controle financeiro com Next.js App Router, autenticação Google via
+NextAuth.js e persistência PostgreSQL com Prisma.
 
-First, run the development server:
+## Pré-requisitos
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Node.js e npm instalados.
+- Uma instância PostgreSQL acessível.
+- Credenciais OAuth 2.0 de um cliente Google.
+
+## Configuração do ambiente
+
+Crie ou atualize o arquivo `.env` na raiz do projeto:
+
+```env
+DATABASE_URL="postgresql://USUARIO:SENHA@HOST:5432/NOME_DO_BANCO?schema=public"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="gere-uma-chave-secreta-forte"
+GOOGLE_CLIENT_ID="seu-client-id"
+GOOGLE_CLIENT_SECRET="seu-client-secret"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+No cliente OAuth do Google, configure a URL de redirecionamento autorizada:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000/api/auth/callback/google
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Em produção, substitua `NEXTAUTH_URL` e a URL de callback pelo domínio HTTPS da
+aplicação. Mantenha as credenciais privadas e nunca as envie ao navegador ou ao
+controle de versão.
 
-## Learn More
+## Preparar o banco e executar
 
-To learn more about Next.js, take a look at the following resources:
+Instale as dependências, gere o cliente Prisma, crie as tabelas e inicie o
+servidor:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npx prisma generate
+npx prisma migrate dev --name init
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Abra [http://localhost:3000](http://localhost:3000) no navegador. No primeiro
+login de cada usuário, são criadas cinco categorias iniciais. Todas as consultas
+e alterações financeiras são limitadas ao usuário autenticado. As ações na
+interface são otimistas e são revertidas se o servidor não conseguir salvar.
 
-## Deploy on Vercel
+Para inspecionar os registros localmente, use:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx prisma studio
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Em produção, aplique as migrations já versionadas com:
+
+```bash
+npx prisma migrate deploy
+```

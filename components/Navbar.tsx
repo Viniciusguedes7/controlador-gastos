@@ -4,7 +4,21 @@
  * Apresenta a marca, o seletor de período e os atalhos das três áreas do app.
  */
 
-import { CalendarDays, ChartNoAxesCombined, CirclePlus, Layers3, WalletCards } from "lucide-react";
+// Importa os ícones da navegação e os controles de autenticação visual.
+import {
+  CalendarDays,
+  ChartNoAxesCombined,
+  CirclePlus,
+  Layers3,
+  LogOut,
+  WalletCards,
+} from "lucide-react";
+// Otimiza a imagem de perfil enviada pelo provedor OAuth.
+import Image from "next/image";
+// Lê o estado da sessão e oferece as ações OAuth do NextAuth.
+import { signIn, signOut, useSession } from "next-auth/react";
+// Reutiliza o alternador em qualquer ponto da aplicação.
+import ThemeToggle from "./ThemeToggle";
 
 /** Identifica qual seção está visível na página principal. */
 export type FinanceTab = "dashboard" | "transactions" | "categories";
@@ -38,6 +52,31 @@ export default function Navbar({
   onMonthChange,
   onNewTransaction,
 }: NavbarProps) {
+  // Consulta a sessão do usuário atual para exibir login ou perfil.
+  const { data: session, status } = useSession();
+
+  // Inicia OAuth Google e registra falhas de configuração do provedor.
+  async function handleSignIn(): Promise<void> {
+    try {
+      // Retorna para a página principal depois da autenticação.
+      await signIn("google", { callbackUrl: "/" });
+    } catch (error) {
+      // Expõe falhas de autenticação no console em vez de ignorá-las.
+      console.error("Não foi possível iniciar o login com Google.", error);
+    }
+  }
+
+  // Encerra a sessão no NextAuth e retorna à tela inicial.
+  async function handleSignOut(): Promise<void> {
+    try {
+      // Atualiza a sessão compartilhada e direciona o usuário ao login.
+      await signOut({ callbackUrl: "/" });
+    } catch (error) {
+      // Mantém um diagnóstico explícito caso a sessão não possa ser encerrada.
+      console.error("Não foi possível encerrar a sessão.", error);
+    }
+  }
+
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-800/90 bg-zinc-950/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
@@ -106,6 +145,53 @@ export default function Navbar({
             <span className="hidden sm:inline">Nova transação</span>
             <span className="sm:hidden">Nova</span>
           </button>
+          {/* Mantém o seletor de tema acessível junto das ações principais. */}
+          <ThemeToggle />
+          {/* Exibe controles de conta somente depois de resolver a sessão. */}
+          {status !== "loading" && session?.user ? (
+            <div className="flex min-w-max items-center gap-2">
+              {/* Mostra a foto do perfil ou uma inicial quando o provedor não envia imagem. */}
+              {session.user.image ? (
+                <Image
+                  src={session.user.image}
+                  alt=""
+                  width={32}
+                  height={32}
+                  unoptimized
+                  className="size-8 rounded-full object-cover"
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="flex size-8 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold text-zinc-200"
+                >
+                  {(session.user.name ?? session.user.email ?? "U").slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              {/* Mantém o nome legível em telas médias e grandes. */}
+              <span className="hidden max-w-32 truncate text-xs text-zinc-300 sm:inline">
+                {session.user.name ?? session.user.email}
+              </span>
+              {/* Permite encerrar a sessão da conta atual. */}
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-800 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800"
+              >
+                <LogOut aria-hidden="true" size={15} />
+                Sair
+              </button>
+            </div>
+          ) : status === "unauthenticated" ? (
+            /* Solicita a autenticação Google antes de mostrar dados pessoais. */
+            <button
+              type="button"
+              onClick={handleSignIn}
+              className="min-w-max rounded-xl bg-violet-500 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-violet-400 sm:px-4 sm:text-sm"
+            >
+              Entrar com Google
+            </button>
+          ) : null}
         </nav>
       </div>
     </header>

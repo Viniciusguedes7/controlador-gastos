@@ -1,0 +1,138 @@
+// Define o gerador utilizado para criar o cliente tipado que a aplicação importa.
+generator client {
+  // Mantém a API compatível com o adaptador oficial do NextAuth para Prisma.
+  provider = "prisma-client-js"
+}
+
+// Configura o banco relacional e lê a URL sem expor credenciais no código.
+datasource db {
+  // Informa ao Prisma que as tabelas serão criadas em PostgreSQL.
+  provider = "postgresql"
+  // Permite configurar o endereço do banco por ambiente.
+  url      = env("DATABASE_URL")
+}
+
+// Guarda as contas OAuth vinculadas ao usuário conforme o contrato do adaptador.
+model Account {
+  // Identificador único da conta externa.
+  id                String  @id @default(cuid())
+  // Identifica o usuário local proprietário desta conta.
+  userId            String
+  // Informa ao adaptador qual provedor autentica esta conta.
+  type              String
+  // Nome do provedor, por exemplo, google.
+  provider          String
+  // Identificador da conta no provedor de autenticação.
+  providerAccountId String
+  // Tokens OAuth são opcionais porque o provedor pode não os retornar.
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  // Relaciona a conta com o usuário e limpa a conta se o usuário for excluído.
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Impede duas contas locais para o mesmo provedor e identificador externo.
+  @@unique([provider, providerAccountId])
+}
+
+// Armazena sessões persistentes usadas pelo adaptador do NextAuth.
+model Session {
+  // Identificador da sessão salvo no cookie seguro do NextAuth.
+  id           String   @id @default(cuid())
+  // Identifica o usuário autenticado nesta sessão.
+  sessionToken String   @unique
+  // Data em que a sessão deixa de ser válida.
+  expires      DateTime
+  // Relaciona a sessão ao usuário e a remove quando ele é excluído.
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Chave estrangeira do usuário dono da sessão.
+  userId       String
+}
+
+// Representa contas locais e relaciona autenticação aos dados financeiros.
+model User {
+  // Identificador primário compatível com o adaptador do NextAuth.
+  id            String          @id @default(cuid())
+  // Nome recebido do provedor, que pode não estar disponível.
+  name          String?
+  // E-mail opcional que o adaptador mantém único quando informado.
+  email         String?         @unique
+  // URL da foto de perfil fornecida pelo provedor.
+  image         String?
+  // Data em que o e-mail foi confirmado pelo provedor.
+  emailVerified DateTime?
+  // Contas Google ou de outros provedores associadas ao usuário.
+  accounts      Account[]
+  // Sessões ativas do usuário no banco.
+  sessions      Session[]
+  // Categorias que pertencem exclusivamente a este usuário.
+  categories    Category[]
+  // Transações que pertencem exclusivamente a este usuário.
+  transactions  Transaction[]
+}
+
+// Guarda códigos temporários de validação exigidos pelo adaptador.
+model VerificationToken {
+  // E-mail ou identificador a que o token foi emitido.
+  identifier String
+  // Código secreto de uso único.
+  token      String   @unique
+  // Data limite de validade do código.
+  expires    DateTime
+
+  // Permite localizar o token pelo identificador e pelo próprio código.
+  @@unique([identifier, token])
+}
+
+// Armazena uma categoria de orçamento criada por um único usuário.
+model Category {
+  // Identificador primário usado pelos formulários e pelas transações.
+  id          String        @id @default(cuid())
+  // Nome visível da categoria.
+  name        String
+  // Cor hexadecimal usada para distinguir a categoria na interface.
+  color       String
+  // Limite mensal planejado em reais.
+  budgetLimit Float
+  // Identificador do usuário proprietário da categoria.
+  userId      String
+  // Relação obrigatória que associa a categoria ao proprietário.
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Transações vinculadas; a regra na transação exclui seus itens em cascata.
+  transactions Transaction[]
+}
+
+// Armazena uma receita ou despesa com proprietário e categoria obrigatórios.
+model Transaction {
+  // Identificador primário do lançamento financeiro.
+  id           String   @id @default(cuid())
+  // Texto que explica a origem ou a finalidade da movimentação.
+  description  String
+  // Valor numérico em reais.
+  amount       Float
+  // Tipo financeiro, por exemplo, income ou expense.
+  type         String
+  // Data no formato ISO simplificado YYYY-MM-DD.
+  date         String
+  // Estado do pagamento, por exemplo, paid ou pending.
+  status       String
+  // Indica se o lançamento representa uma recorrência.
+  isRecurring  Boolean
+  // Identificador obrigatório da categoria relacionada.
+  categoryId   String
+  // Identificador do usuário proprietário, verificado em cada Server Action.
+  userId       String
+  // Relação que apaga os lançamentos se sua categoria for excluída.
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // Relação que apaga os lançamentos se o usuário for excluído.
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Indexa consultas isoladas por usuário e ordenadas pela data.
+  @@index([userId, date])
+  // Indexa verificações de propriedade da categoria dentro de um usuário.
+  @@index([categoryId, userId])
+}

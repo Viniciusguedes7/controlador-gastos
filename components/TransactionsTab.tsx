@@ -53,6 +53,8 @@ interface TransactionsTabProps {
   onEdit: (transaction: Transaction) => void;
   /** Exclui uma transação pelo seu identificador. */
   onRemove: (transactionId: string) => void;
+  /** Alterna o estado de pagamento por uma operação protegida no servidor. */
+  onToggleStatus: (transactionId: string) => void;
 }
 
 /** Classes compartilhadas pelos campos para manter uma aparência consistente. */
@@ -83,6 +85,7 @@ export default function TransactionsTab({
   onAdd,
   onEdit,
   onRemove,
+  onToggleStatus,
 }: TransactionsTabProps) {
   /** Armazena o tipo escolhido como filtro da lista. */
   const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
@@ -222,10 +225,7 @@ export default function TransactionsTab({
 
   /** Alterna o estado de pagamento de um item sem alterar os demais dados. */
   function toggleStatus(transaction: Transaction): void {
-    onEdit({
-      ...transaction,
-      status: transaction.status === "paid" ? "pending" : "paid",
-    });
+    onToggleStatus(transaction.id);
   }
 
   return (

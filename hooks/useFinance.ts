@@ -1,188 +1,399 @@
 "use client";
 
-/**
- * Reúne o estado financeiro, a persistência local e os cálculos usados nas telas.
- * A leitura do navegador acontece em um efeito para manter a hidratação previsível.
- */
-
+// Importa os cálculos de mês e as ações que persistem os dados no servidor.
 import { useEffect, useMemo, useState } from "react";
 import {
-  getCurrentMonth,
-  initialCategories,
-  legacyDemoTransactionIds,
-} from "../data/mockData";
+  createCategory,
+  createTransaction,
+  deleteCategory,
+  deleteTransaction,
+  getFinanceData,
+  toggleTransactionStatus,
+  updateCategory,
+  updateTransaction,
+} from "../app/actions/finance";
+// Compartilha os contratos usados tanto pelo banco quanto pelas telas.
 import type { Category, Transaction } from "../types/finance";
 
-/** Chave isolada para salvar e recuperar os dados deste aplicativo. */
-const STORAGE_KEY = "controlador-gastos-dados-v1";
-
-/** Estrutura persistida para manter categorias e transações no mesmo registro. */
-interface FinanceStorage {
-  /** Categorias salvas pelo usuário. */
-  categories: Category[];
-  /** Movimentações salvas pelo usuário. */
-  transactions: Transaction[];
+// Retorna o mês local no formato exigido pelo seletor de período.
+function getCurrentMonth(): string {
+  // Lê a data local para não exibir o mês anterior por diferença de fuso.
+  const now = new Date();
+  // Completa com zero o mês de um dígito.
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  // Combina ano e mês no formato YYYY-MM.
+  return `${now.getFullYear()}-${month}`;
 }
 
-/** Valores derivados usados para desenhar o orçamento por categoria. */
+// Define os valores derivados usados no painel de orçamento por categoria.
 export interface CategorySpending {
-  /** Categoria à qual o gasto mensal pertence. */
+  // Categoria relacionada ao valor calculado.
   category: Category;
-  /** Soma das despesas desta categoria no mês selecionado. */
+  // Total de despesas da categoria no mês selecionado.
   spent: number;
 }
 
-/** Confere se os dados carregados possuem o formato mínimo esperado. */
-function isFinanceStorage(value: unknown): value is FinanceStorage {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-
-  const data = value as Partial<FinanceStorage>;
-  return Array.isArray(data.categories) && Array.isArray(data.transactions);
+// Gera uma chave temporária para desenhar um item antes de o banco retornar seu ID.
+function createOptimisticId(): string {
+  // Prefixa o UUID para distinguir claramente um registro ainda não persistido.
+  return `optimistic-${globalThis.crypto.randomUUID()}`;
 }
 
-/** Cria um identificador para novos registros no navegador. */
-function createId(): string {
-  return globalThis.crypto.randomUUID();
-}
-
-/** Hook principal para consultar e alterar os dados pessoais. */
-export function useFinance() {
-  /** Guarda as categorias atuais; a lista inicial é igual no servidor e no cliente. */
-  const [categories, setCategories] = useState<Category[]>(initialCategories);
-  /** Guarda os lançamentos atuais; por padrão, não existem transações cadastradas. */
+// Mantém todo o estado financeiro do usuário e aplica alterações otimistas.
+export function useFinance(userId: string) {
+  // Guarda as categorias carregadas da conta atualmente autenticada.
+  const [categories, setCategories] = useState<Category[]>([]);
+  // Guarda as transações persistidas e as alterações otimistas em andamento.
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  /** Controla o mês filtrado e também o período dos totais do Dashboard. */
-  const [selectedMonth, setSelectedMonth] = useState<string>("");
-  /** Texto usado para localizar descrição ou nome de categoria. */
+  // Controla o período utilizado pelos filtros e indicadores.
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth);
+  // Guarda o texto livre usado para procurar descrições e categorias.
   const [searchTerm, setSearchTerm] = useState("");
-  /** Categoria opcional usada como filtro na lista de transações. */
+  // Guarda a categoria selecionada ou a opção para visualizar todas.
   const [categoryFilter, setCategoryFilter] = useState("all");
-  /** Bloqueia a gravação até terminar de carregar o localStorage. */
-  const [isHydrated, setIsHydrated] = useState(false);
+  // Indica carregamento inicial ou troca de conta.
+  const [isLoading, setIsLoading] = useState(true);
+  // Expõe falhas da API na interface, sem fingir que a gravação teve sucesso.
+  const [actionError, setActionError] = useState("");
 
-  /** Recupera os dados salvos somente no navegador, após a primeira renderização. */
+  // Carrega registros privados somente quando existe uma identidade autenticada.
   useEffect(() => {
-    /** Adia a leitura para depois da montagem, fora do caminho de renderização. */
-    const timerId = window.setTimeout(() => {
-      const currentMonth = getCurrentMonth();
-
-      try {
-        const savedData = window.localStorage.getItem(STORAGE_KEY);
-
-        if (savedData) {
-          const parsedData: unknown = JSON.parse(savedData);
-
-          if (isFinanceStorage(parsedData)) {
-            setCategories(parsedData.categories);
-            setTransactions(
-              parsedData.transactions.filter(
-                (transaction) => !legacyDemoTransactionIds.has(transaction.id),
-              ),
-            );
-          } else {
-            console.error("Os dados salvos do controlador financeiro têm formato inválido.");
-          }
-        }
-      } catch (error) {
-        console.error("Não foi possível carregar os dados financeiros salvos.", error);
-      } finally {
-        setSelectedMonth(currentMonth);
-        setIsHydrated(true);
-      }
-
-    }, 0);
-
-    return () => window.clearTimeout(timerId);
-  }, []);
-
-  /** Persiste alterações depois que a leitura inicial do navegador foi concluída. */
-  useEffect(() => {
-    if (!isHydrated) {
+    // Impede consulta se a composição da tela violar o contrato de autenticação.
+    if (!userId) {
       return;
     }
 
-    try {
-      const dataToSave: FinanceStorage = { categories, transactions };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-    } catch (error) {
-      console.error("Não foi possível salvar os dados financeiros no navegador.", error);
-    }
-  }, [categories, isHydrated, transactions]);
+    // Ignora respostas antigas se a tela da conta for desmontada.
+    let isCurrentRequest = true;
 
-  /** Adiciona uma nova movimentação com identificador criado localmente. */
-  function addTransaction(transaction: Omit<Transaction, "id">): void {
-    setTransactions((currentTransactions) => [
-      { ...transaction, id: createId() },
-      ...currentTransactions,
-    ]);
+    // Busca dados exclusivamente no servidor, onde a sessão é validada novamente.
+    getFinanceData()
+      .then((data) => {
+        // Atualiza a tela somente se esta ainda for a conta ativa.
+        if (isCurrentRequest) {
+          setCategories(data.categories);
+          setTransactions(data.transactions);
+        }
+      })
+      .catch((error: unknown) => {
+        // Registra o erro original para facilitar a investigação no servidor.
+        console.error("Não foi possível carregar os dados financeiros.", error);
+        // Mostra uma mensagem em vez de apresentar uma lista vazia como sucesso.
+        if (isCurrentRequest) {
+          setActionError(
+            error instanceof Error
+              ? error.message
+              : "Não foi possível carregar seus dados financeiros.",
+          );
+        }
+      })
+      .finally(() => {
+        // Finaliza o indicador apenas para a solicitação que continua ativa.
+        if (isCurrentRequest) {
+          setIsLoading(false);
+        }
+      });
+
+    // Marca a resposta anterior como obsoleta quando usuário ou componente mudar.
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [userId]);
+
+  // Apresenta erro de uma gravação e o registra para diagnóstico.
+  function reportActionError(message: string, error: unknown): void {
+    // Registra a causa original em vez de ocultar erros de rede ou do servidor.
+    console.error(message, error);
+    // Prefere a mensagem validada pelo servidor e usa texto explícito como fallback.
+    setActionError(error instanceof Error ? error.message : message);
   }
 
-  /** Substitui os dados da movimentação correspondente ao identificador. */
-  function editTransaction(updatedTransaction: Transaction): void {
-    setTransactions((currentTransactions) =>
-      currentTransactions.map((transaction) =>
+  // Insere uma transação na tela e troca sua chave temporária após a persistência.
+  async function addTransaction(input: Omit<Transaction, "id">): Promise<void> {
+    // Remove alertas anteriores antes de iniciar uma nova gravação.
+    setActionError("");
+    // Cria um registro local para a lista responder sem esperar a rede.
+    const optimisticTransaction: Transaction = { ...input, id: createOptimisticId() };
+    // Exibe o novo lançamento imediatamente no topo da lista.
+    setTransactions((current) => [optimisticTransaction, ...current]);
+
+    try {
+      // Persiste o item no banco e recebe o identificador definitivo.
+      const savedTransaction = await createTransaction(input);
+      // Substitui somente a transação provisória desta operação.
+      setTransactions((current) =>
+        current.map((transaction) =>
+          transaction.id === optimisticTransaction.id ? savedTransaction : transaction,
+        ),
+      );
+    } catch (error) {
+      // Remove o item provisório para que a interface reflita o banco após a falha.
+      setTransactions((current) =>
+        current.filter((transaction) => transaction.id !== optimisticTransaction.id),
+      );
+      // Comunica o problema para o usuário sem interromper as outras interações.
+      reportActionError("Não foi possível criar a transação.", error);
+    }
+  }
+
+  // Atualiza os dados de uma transação na tela antes de salvar a alteração.
+  async function editTransaction(updatedTransaction: Transaction): Promise<void> {
+    // Localiza a versão persistida para poder restaurá-la em caso de falha.
+    const previousTransaction = transactions.find(
+      (transaction) => transaction.id === updatedTransaction.id,
+    );
+    // Não tenta salvar um ID ausente do estado atual.
+    if (!previousTransaction) {
+      setActionError("A transação não está disponível nesta conta.");
+      return;
+    }
+    // Limpa avisos anteriores e aplica o novo valor imediatamente.
+    setActionError("");
+    setTransactions((current) =>
+      current.map((transaction) =>
         transaction.id === updatedTransaction.id ? updatedTransaction : transaction,
       ),
     );
-  }
 
-  /** Remove a movimentação selecionada da lista. */
-  function removeTransaction(transactionId: string): void {
-    setTransactions((currentTransactions) =>
-      currentTransactions.filter((transaction) => transaction.id !== transactionId),
-    );
-  }
-
-  /** Adiciona uma categoria usando um identificador local único. */
-  function addCategory(category: Omit<Category, "id">): void {
-    setCategories((currentCategories) => [{ ...category, id: createId() }, ...currentCategories]);
-  }
-
-  /** Atualiza nome, cor ou orçamento de uma categoria existente. */
-  function editCategory(updatedCategory: Category): void {
-    setCategories((currentCategories) =>
-      currentCategories.map((category) =>
-        category.id === updatedCategory.id ? updatedCategory : category,
-      ),
-    );
-  }
-
-  /** Remove a categoria e seus lançamentos para não deixar referências inválidas. */
-  function removeCategory(categoryId: string): void {
-    setCategories((currentCategories) =>
-      currentCategories.filter((category) => category.id !== categoryId),
-    );
-    setTransactions((currentTransactions) =>
-      currentTransactions.filter((transaction) => transaction.categoryId !== categoryId),
-    );
-    if (categoryFilter === categoryId) {
-      setCategoryFilter("all");
+    try {
+      // Confirma a alteração no servidor e recebe os valores normalizados.
+      const savedTransaction = await updateTransaction(updatedTransaction);
+      // Troca o valor otimista pela versão persistida, preservando outros itens.
+      setTransactions((current) =>
+        current.map((transaction) =>
+          transaction.id === savedTransaction.id ? savedTransaction : transaction,
+        ),
+      );
+    } catch (error) {
+      // Reverte apenas o registro que falhou, sem substituir toda a lista.
+      setTransactions((current) =>
+        current.map((transaction) =>
+          transaction.id === previousTransaction.id ? previousTransaction : transaction,
+        ),
+      );
+      // Torna a falha explícita na página.
+      reportActionError("Não foi possível atualizar a transação.", error);
     }
   }
 
-  /** Retorna os lançamentos de um período no formato YYYY-MM. */
-  function getTransactionsByMonth(month: string): Transaction[] {
-    return transactions.filter((transaction) => transaction.date.startsWith(month));
+  // Remove imediatamente uma transação e restaura sua posição se o banco falhar.
+  async function removeTransaction(transactionId: string): Promise<void> {
+    // Guarda o registro e sua posição original para montar um rollback localizado.
+    const previousIndex = transactions.findIndex(
+      (transaction) => transaction.id === transactionId,
+    );
+    const previousTransaction = transactions[previousIndex];
+    // Interrompe com mensagem explícita se o item não estiver carregado.
+    if (!previousTransaction) {
+      setActionError("A transação não está disponível nesta conta.");
+      return;
+    }
+    // Limpa avisos antigos e remove o item sem esperar pela rede.
+    setActionError("");
+    setTransactions((current) =>
+      current.filter((transaction) => transaction.id !== transactionId),
+    );
+
+    try {
+      // Solicita ao servidor a exclusão, que valida a propriedade do registro.
+      await deleteTransaction(transactionId);
+    } catch (error) {
+      // Reinsere somente o item removido caso outra ação não o tenha restaurado.
+      setTransactions((current) => {
+        if (current.some((transaction) => transaction.id === transactionId)) {
+          return current;
+        }
+        const restored = [...current];
+        restored.splice(Math.min(previousIndex, restored.length), 0, previousTransaction);
+        return restored;
+      });
+      // Exibe a falha e permite que a pessoa tente novamente.
+      reportActionError("Não foi possível excluir a transação.", error);
+    }
   }
 
-  /** Mantém somente registros do mês selecionado que atendem à busca e categoria. */
+  // Insere uma categoria provisória e depois troca seu ID pelo criado no banco.
+  async function addCategory(input: Omit<Category, "id">): Promise<void> {
+    // Limpa mensagens anteriores antes de iniciar o cadastro.
+    setActionError("");
+    // Cria uma categoria otimista com uma chave temporária única.
+    const optimisticCategory: Category = { ...input, id: createOptimisticId() };
+    // Mostra a nova categoria imediatamente nos filtros e formulários.
+    setCategories((current) => [optimisticCategory, ...current]);
+
+    try {
+      // Persiste a categoria no banco e recebe o ID definitivo.
+      const savedCategory = await createCategory(input);
+      // Substitui apenas a categoria provisória correspondente a esta chamada.
+      setCategories((current) =>
+        current.map((category) =>
+          category.id === optimisticCategory.id ? savedCategory : category,
+        ),
+      );
+    } catch (error) {
+      // Remove o rascunho local para que ele não pareça salvo.
+      setCategories((current) =>
+        current.filter((category) => category.id !== optimisticCategory.id),
+      );
+      // Informa o erro de persistência à página.
+      reportActionError("Não foi possível criar a categoria.", error);
+    }
+  }
+
+  // Atualiza a categoria imediatamente e recupera seus valores em caso de falha.
+  async function editCategory(updatedCategory: Category): Promise<void> {
+    // Guarda a categoria atual para desfazer somente esta alteração.
+    const previousCategory = categories.find(
+      (category) => category.id === updatedCategory.id,
+    );
+    // Recusa alterações para IDs que não pertencem ao estado carregado.
+    if (!previousCategory) {
+      setActionError("A categoria não está disponível nesta conta.");
+      return;
+    }
+    // Limpa mensagens antigas e atualiza os dados renderizados.
+    setActionError("");
+    setCategories((current) =>
+      current.map((category) =>
+        category.id === updatedCategory.id ? updatedCategory : category,
+      ),
+    );
+
+    try {
+      // Envia a alteração e aguarda a confirmação do servidor.
+      const savedCategory = await updateCategory(updatedCategory);
+      // Usa o registro persistido para manter a tela alinhada ao banco.
+      setCategories((current) =>
+        current.map((category) =>
+          category.id === savedCategory.id ? savedCategory : category,
+        ),
+      );
+    } catch (error) {
+      // Reverte apenas a categoria cujo salvamento falhou.
+      setCategories((current) =>
+        current.map((category) =>
+          category.id === previousCategory.id ? previousCategory : category,
+        ),
+      );
+      // Mantém a falha visível e acionável.
+      reportActionError("Não foi possível atualizar a categoria.", error);
+    }
+  }
+
+  // Exclui uma categoria e suas transações da tela, restaurando-as se a API falhar.
+  async function removeCategory(categoryId: string): Promise<void> {
+    // Guarda a categoria selecionada para possibilitar a reversão.
+    const previousCategory = categories.find((category) => category.id === categoryId);
+    // Guarda transações em cascata e suas posições originais.
+    const removedTransactions = transactions
+      .map((transaction, index) => ({ transaction, index }))
+      .filter(({ transaction }) => transaction.categoryId === categoryId);
+    // Interrompe quando a categoria não faz parte dos dados carregados.
+    if (!previousCategory) {
+      setActionError("A categoria não está disponível nesta conta.");
+      return;
+    }
+    // Limpa avisos anteriores e atualiza ambas as listas de forma imediata.
+    setActionError("");
+    setCategories((current) =>
+      current.filter((category) => category.id !== categoryId),
+    );
+    setTransactions((current) =>
+      current.filter((transaction) => transaction.categoryId !== categoryId),
+    );
+    // Remove o filtro selecionado para não manter referência à categoria excluída.
+    if (categoryFilter === categoryId) {
+      setCategoryFilter("all");
+    }
+
+    try {
+      // O servidor confirma propriedade e remove a categoria em cascata no banco.
+      await deleteCategory(categoryId);
+    } catch (error) {
+      // Restaura categoria e lançamentos sem duplicar registros já presentes.
+      setCategories((current) =>
+        current.some((category) => category.id === categoryId)
+          ? current
+          : [previousCategory, ...current],
+      );
+      setTransactions((current) => {
+        const restored = [...current];
+        for (const { transaction, index } of removedTransactions) {
+          if (!restored.some((item) => item.id === transaction.id)) {
+            restored.splice(Math.min(index, restored.length), 0, transaction);
+          }
+        }
+        return restored;
+      });
+      // Notifica que a exclusão não foi persistida.
+      reportActionError("Não foi possível excluir a categoria.", error);
+    }
+  }
+
+  // Alterna o estado de pagamento local e reverte somente se o servidor falhar.
+  async function changeTransactionStatus(transactionId: string): Promise<void> {
+    // Obtém a versão atual para construir o rollback da operação.
+    const previousTransaction = transactions.find(
+      (transaction) => transaction.id === transactionId,
+    );
+    // Impede chamar o servidor com um identificador que não está visível.
+    if (!previousTransaction) {
+      setActionError("A transação não está disponível nesta conta.");
+      return;
+    }
+    // Calcula o novo estado e aplica a mudança sem aguardar a rede.
+    const optimisticTransaction: Transaction = {
+      ...previousTransaction,
+      status: previousTransaction.status === "paid" ? "pending" : "paid",
+    };
+    setActionError("");
+    setTransactions((current) =>
+      current.map((transaction) =>
+        transaction.id === transactionId ? optimisticTransaction : transaction,
+      ),
+    );
+
+    try {
+      // O servidor inverte a situação depois de confirmar a propriedade.
+      const savedTransaction = await toggleTransactionStatus(transactionId);
+      // Substitui o estado provisório pela versão confirmada.
+      setTransactions((current) =>
+        current.map((transaction) =>
+          transaction.id === savedTransaction.id ? savedTransaction : transaction,
+        ),
+      );
+    } catch (error) {
+      // Recupera o estado anterior sem alterar transações independentes.
+      setTransactions((current) =>
+        current.map((transaction) =>
+          transaction.id === previousTransaction.id ? previousTransaction : transaction,
+        ),
+      );
+      // Deixa explícito que o novo estado não foi persistido.
+      reportActionError("Não foi possível alterar a situação da transação.", error);
+    }
+  }
+
+  // Filtra as movimentações por mês, categoria e texto de busca.
   const filteredTransactions = useMemo(() => {
+    // Normaliza texto para que a busca ignore diferenças de maiúsculas.
     const normalizedSearch = searchTerm.trim().toLocaleLowerCase("pt-BR");
 
+    // Combina os filtros e ordena primeiro as datas mais recentes.
     return transactions
       .filter((transaction) => transaction.date.startsWith(selectedMonth))
       .filter(
         (transaction) => categoryFilter === "all" || transaction.categoryId === categoryFilter,
       )
       .filter((transaction) => {
+        // Mantém todos os registros quando não há texto informado.
         if (!normalizedSearch) {
           return true;
         }
-
+        // Inclui o nome da categoria na busca além da descrição.
         const categoryName =
           categories.find((category) => category.id === transaction.categoryId)?.name ?? "";
+        // Compara descrição e categoria com a localização em português.
         return `${transaction.description} ${categoryName}`
           .toLocaleLowerCase("pt-BR")
           .includes(normalizedSearch);
@@ -190,13 +401,13 @@ export function useFinance() {
       .sort((first, second) => second.date.localeCompare(first.date));
   }, [categories, categoryFilter, searchTerm, selectedMonth, transactions]);
 
-  /** Filtra lançamentos do mês para derivar as somas exibidas no resumo. */
+  // Isola as transações do mês selecionado para o Dashboard.
   const monthlyTransactions = useMemo(
     () => transactions.filter((transaction) => transaction.date.startsWith(selectedMonth)),
     [selectedMonth, transactions],
   );
 
-  /** Soma receitas do mês sem alterar o estado original. */
+  // Soma receitas do mês sem modificar a lista original.
   const totalIncome = useMemo(
     () =>
       monthlyTransactions.reduce(
@@ -207,7 +418,7 @@ export function useFinance() {
     [monthlyTransactions],
   );
 
-  /** Soma despesas do mês sem alterar o estado original. */
+  // Soma despesas do mês sem modificar a lista original.
   const totalExpenses = useMemo(
     () =>
       monthlyTransactions.reduce(
@@ -218,34 +429,37 @@ export function useFinance() {
     [monthlyTransactions],
   );
 
-  /** Calcula o saldo líquido do mês usando receitas menos despesas. */
+  // Calcula o saldo líquido do período consultado.
   const currentBalance = totalIncome - totalExpenses;
 
-  /** Calcula o total gasto por categoria, considerando somente despesas do mês. */
-  const categorySpending = useMemo<CategorySpending[]>(
-    () => {
-      const categoriesWithExpenses = new Set(
-        monthlyTransactions
-          .filter((transaction) => transaction.type === "expense")
-          .map((transaction) => transaction.categoryId),
-      );
+  // Agrupa despesas por categoria para desenhar o uso dos limites mensais.
+  const categorySpending = useMemo<CategorySpending[]>(() => {
+    // Identifica categorias que tiveram alguma despesa no mês selecionado.
+    const categoriesWithExpenses = new Set(
+      monthlyTransactions
+        .filter((transaction) => transaction.type === "expense")
+        .map((transaction) => transaction.categoryId),
+    );
 
-      return categories
-        .filter((category) => category.budgetLimit > 0 || categoriesWithExpenses.has(category.id))
-        .map((category) => ({
-          category,
-          spent: monthlyTransactions.reduce(
-            (total, transaction) =>
-              transaction.type === "expense" && transaction.categoryId === category.id
-                ? total + transaction.amount
-                : total,
-            0,
-          ),
-        }));
-    },
-    [categories, monthlyTransactions],
-  );
+    // Mostra categorias com limite ou que receberam uma despesa no período.
+    return categories
+      .filter(
+        (category) => category.budgetLimit > 0 || categoriesWithExpenses.has(category.id),
+      )
+      .map((category) => ({
+        category,
+        // Soma somente despesas associadas à categoria atual.
+        spent: monthlyTransactions.reduce(
+          (total, transaction) =>
+            transaction.type === "expense" && transaction.categoryId === category.id
+              ? total + transaction.amount
+              : total,
+          0,
+        ),
+      }));
+  }, [categories, monthlyTransactions]);
 
+  // Expõe dados, filtros, carregamento e ações para os componentes de tela.
   return {
     categories,
     transactions,
@@ -261,12 +475,14 @@ export function useFinance() {
     totalExpenses,
     currentBalance,
     categorySpending,
+    isLoading,
+    actionError,
     addTransaction,
     editTransaction,
     removeTransaction,
     addCategory,
     editCategory,
     removeCategory,
-    getTransactionsByMonth,
+    toggleTransactionStatus: changeTransactionStatus,
   };
 }

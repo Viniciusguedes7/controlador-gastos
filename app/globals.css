@@ -18,3 +18,132 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+/* Ajusta as cores nativas do documento quando o tema claro está ativo. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --background: #fafafa;
+  --foreground: #18181b;
+}
+
+/* Mantém a superfície global clara mesmo antes de os componentes serem renderizados. */
+:root[data-theme="light"] body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Converte superfícies escuras de todas as abas em cartões claros. */
+:root[data-theme="light"] [class~="bg-zinc-950"],
+:root[data-theme="light"] [class~="bg-zinc-950/50"] {
+  background-color: #fafafa !important;
+}
+
+/* Clareia cabeçalhos semitransparentes que ficam fixos durante a navegação. */
+:root[data-theme="light"] [class~="bg-zinc-950/95"] {
+  background-color: rgb(250 250 250 / 95%) !important;
+}
+
+/* Transforma cartões e controles de fundo zinc-900 em superfícies brancas. */
+:root[data-theme="light"] [class~="bg-zinc-900"],
+:root[data-theme="light"] [class~="bg-zinc-900/80"],
+:root[data-theme="light"] [class~="bg-zinc-900/70"] {
+  background-color: #fff !important;
+}
+
+/* Dá contraste suave aos controles que usam zinc-800 no tema escuro. */
+:root[data-theme="light"] [class~="bg-zinc-800"],
+:root[data-theme="light"] [class~="bg-zinc-800/80"],
+:root[data-theme="light"] [class~="bg-zinc-800/70"],
+:root[data-theme="light"] [class~="bg-zinc-800/50"] {
+  background-color: #f4f4f5 !important;
+}
+
+/* Mantém o cabeçalho das tabelas e itens em hover perceptíveis no tema claro. */
+:root[data-theme="light"] [class~="bg-zinc-950/50"],
+:root[data-theme="light"] [class~="hover:bg-zinc-800/30"]:hover,
+:root[data-theme="light"] [class~="hover:bg-zinc-800/70"]:hover {
+  background-color: #f4f4f5 !important;
+}
+
+/* Ajusta as bordas e divisórias zinc para tons leves no fundo branco. */
+:root[data-theme="light"] [class~="border-zinc-800"],
+:root[data-theme="light"] [class~="border-zinc-800/80"],
+:root[data-theme="light"] [class~="border-zinc-800/90"],
+:root[data-theme="light"] [class~="border-zinc-700"],
+:root[data-theme="light"] [class~="border-zinc-600"] {
+  border-color: #e4e4e7 !important;
+}
+
+/* Harmoniza divisórias de listas e tabelas com os cartões claros. */
+:root[data-theme="light"] [class~="divide-zinc-800/80"],
+:root[data-theme="light"] [class~="divide-zinc-800"] {
+  border-color: #e4e4e7 !important;
+}
+
+/* Aumenta a legibilidade de textos neutros sobre superfícies claras. */
+:root[data-theme="light"] [class~="text-white"],
+:root[data-theme="light"] [class~="text-zinc-100"],
+:root[data-theme="light"] [class~="text-zinc-200"] {
+  color: #18181b !important;
+}
+
+/* Preserva textos brancos nos botões coloridos e nos cartões de destaque. */
+:root[data-theme="light"] button[class~="text-white"] {
+  color: #fff !important;
+}
+
+/* Mantém os ícones de marca brancos sobre seus fundos violetas. */
+:root[data-theme="light"] [class~="bg-violet-500"][class~="text-white"] {
+  color: #fff !important;
+}
+
+/* Escurece textos secundários para que continuem legíveis no tema claro. */
+:root[data-theme="light"] [class~="text-zinc-300"] {
+  color: #3f3f46 !important;
+}
+
+/* Reforça a visibilidade de legendas e instruções em superfícies brancas. */
+:root[data-theme="light"] [class~="text-zinc-400"] {
+  color: #52525b !important;
+}
+
+/* Ajusta rótulos discretos sem remover sua hierarquia visual. */
+:root[data-theme="light"] [class~="text-zinc-500"] {
+  color: #71717a !important;
+}
+
+/* Evita que rodapés e textos auxiliares fiquem invisíveis no modo claro. */
+:root[data-theme="light"] [class~="text-zinc-600"] {
+  color: #71717a !important;
+}
+
+/* Troca as superfícies coloridas do dashboard por variações suaves e legíveis. */
+:root[data-theme="light"] [class~="bg-emerald-950/45"] {
+  background-color: #ecfdf5 !important;
+}
+
+/* Suaviza o cartão de despesas sem retirar a indicação de cor. */
+:root[data-theme="light"] [class~="bg-rose-950/40"] {
+  background-color: #fff1f2 !important;
+}
+
+/* Clareia o cartão de saldo para preservar contraste com o fundo principal. */
+:root[data-theme="light"] [class~="bg-indigo-950/50"] {
+  background-color: #eef2ff !important;
+}
+
+/* Atualiza as bordas dos cartões de resumo para suas versões claras. */
+:root[data-theme="light"] [class~="border-emerald-900/70"] {
+  border-color: #a7f3d0 !important;
+}
+
+/* Atualiza a borda do cartão de despesas para um tom de rosa suave. */
+:root[data-theme="light"] [class~="border-rose-900/70"] {
+  border-color: #fecdd3 !important;
+}
+
+/* Define o esquema claro para campos de mês e data do navegador. */
+:root[data-theme="light"] input[type="month"],
+:root[data-theme="light"] input[type="date"] {
+  color-scheme: light;
+}
