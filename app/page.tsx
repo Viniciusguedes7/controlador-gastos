@@ -11,6 +11,8 @@ import Navbar, { type FinanceTab } from "../components/Navbar";
 import TransactionsTab from "../components/TransactionsTab";
 // Apresenta a tela de entrada para pessoas sem sessão.
 import LoginScreen from "../components/LoginScreen";
+// Exibe os créditos e os canais de contato no rodapé da aplicação.
+import CreatorFooter from "../components/CreatorFooter";
 // Carrega os registros e mantém as operações otimistas do usuário.
 import { useFinance } from "../hooks/useFinance";
 
@@ -29,7 +31,7 @@ function FinanceApp({ userId }: { userId: string }) {
 
   // Apresenta o painel financeiro com cores e conteúdo adaptados ao tema ativo.
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex min-h-screen flex-col bg-zinc-950 text-zinc-100">
       {/* Mantém navegação, período e conta acessíveis no topo da aplicação. */}
       <Navbar
         activeTab={activeTab}
@@ -39,7 +41,7 @@ function FinanceApp({ userId }: { userId: string }) {
         onNewTransaction={openNewTransaction}
       />
       {/* Centraliza o conteúdo e limita a largura de leitura em telas grandes. */}
-      <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {/* Explica ao usuário que os dados estão sendo carregados do PostgreSQL. */}
         {finance.isLoading && (
           <p role="status" className="mb-5 text-sm text-zinc-400">
@@ -120,6 +122,8 @@ function FinanceApp({ userId }: { userId: string }) {
           Seus dados ficam salvos com segurança na sua conta.
         </footer>
       </main>
+      {/* Mantém créditos e contato no fluxo da página, abaixo do conteúdo principal. */}
+      <CreatorFooter />
     </div>
   );
 }
