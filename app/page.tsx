@@ -22,6 +22,8 @@ function FinanceApp({ userId }: { userId: string }) {
   const [activeTab, setActiveTab] = useState<FinanceTab>("dashboard");
   // Busca dados e operações associados à identidade da sessão atual.
   const finance = useFinance(userId);
+  // Extrai o ano do filtro mensal para orientar os intervalos do gráfico.
+  const selectedYear = Number(finance.selectedMonth.slice(0, 4));
 
   // Abre a área de transações para facilitar o lançamento de uma movimentação.
   function openNewTransaction(): void {
@@ -84,7 +86,9 @@ function FinanceApp({ userId }: { userId: string }) {
             totalExpenses={finance.totalExpenses}
             currentBalance={finance.currentBalance}
             categorySpending={finance.categorySpending}
-            transactions={finance.monthlyTransactions}
+            transactions={finance.transactions}
+            selectedMonth={finance.selectedMonth}
+            selectedYear={selectedYear}
             categories={finance.categories}
             onViewTransactions={() => setActiveTab("transactions")}
           />

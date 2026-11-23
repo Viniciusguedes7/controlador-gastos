@@ -7,6 +7,8 @@
 import { ArrowDownRight, ArrowUpRight, CreditCard, ReceiptText } from "lucide-react";
 import type { Category, Transaction } from "../types/finance";
 import type { CategorySpending } from "../hooks/useFinance";
+// Apresenta a comparação histórica das duas séries de movimentações.
+import ComparisonChart from "./ComparisonChart";
 
 /** Propriedades calculadas pela página e entregues ao Dashboard. */
 interface DashboardTabProps {
@@ -18,8 +20,12 @@ interface DashboardTabProps {
   currentBalance: number;
   /** Gastos agrupados por categoria, já limitados ao mês selecionado. */
   categorySpending: CategorySpending[];
-  /** Lançamentos do mês, usados para compor a lista recente. */
+  /** Histórico completo usado pelo gráfico e pela lista recente. */
   transactions: Transaction[];
+  /** Mês atualmente selecionado no filtro principal, no formato YYYY-MM. */
+  selectedMonth: string;
+  /** Ano do mês atualmente selecionado no filtro principal. */
+  selectedYear: number;
   /** Categorias completas para associar nome e cor aos lançamentos. */
   categories: Category[];
   /** Ação que leva o usuário à lista completa de transações. */
@@ -73,11 +79,14 @@ export default function DashboardTab({
   currentBalance,
   categorySpending,
   transactions,
+  selectedMonth,
+  selectedYear,
   categories,
   onViewTransactions,
 }: DashboardTabProps) {
-  /** Mantém somente os seis lançamentos mais recentes para o painel compacto. */
-  const recentTransactions = [...transactions]
+  /** Mantém somente os seis lançamentos recentes do mês selecionado. */
+  const recentTransactions = transactions
+    .filter((transaction) => transaction.date.startsWith(selectedMonth))
     .sort((first, second) => second.date.localeCompare(first.date))
     .slice(0, 6);
 
@@ -114,6 +123,13 @@ export default function DashboardTab({
           );
         })}
       </div>
+
+      {/* Compara receitas e despesas usando o histórico completo da conta. */}
+      <ComparisonChart
+        transactions={transactions}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+      />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6">
