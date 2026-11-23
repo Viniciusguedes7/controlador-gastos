@@ -87,7 +87,7 @@ export default function Navbar({
             </div>
             <div>
               <p className="text-sm font-bold tracking-tight text-white sm:text-base">
-                controlador-gastos
+                Controlador de Gastos
               </p>
               <p className="text-xs text-zinc-500">Seu dinheiro, com mais clareza</p>
             </div>
