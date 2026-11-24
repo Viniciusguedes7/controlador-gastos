@@ -105,7 +105,10 @@ export default function Navbar({
           </label>
         </div>
 
-        <nav aria-label="Navegação principal" className="flex items-center gap-2 overflow-x-auto">
+        <nav
+          aria-label="Navegação principal"
+          className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
           <div className="flex min-w-max items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/80 p-1">
             {navigationItems.map(({ id, label, icon: Icon }) => (
               <button
