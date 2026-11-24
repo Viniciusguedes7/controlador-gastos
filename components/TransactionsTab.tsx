@@ -12,6 +12,9 @@ import type {
   TransactionStatus,
   TransactionType,
 } from "../types/finance";
+import { isSalaryCategoryName } from "../lib/category-utils";
+import CustomSelect, { type CustomSelectOption } from "./CustomSelect";
+import CustomDatePicker from "./CustomDatePicker";
 
 /** Campos controlados pelo formulário antes de serem salvos como uma transação. */
 interface TransactionFormValues {
@@ -24,7 +27,7 @@ interface TransactionFormValues {
   /** Categoria escolhida na lista. */
   categoryId: string;
   /** Data selecionada no calendário do formulário. */
-  date: string;
+  date: string | null;
   /** Situação de pagamento selecionada. */
   status: TransactionStatus;
   /** Opção para identificar uma movimentação recorrente. */
@@ -45,6 +48,13 @@ interface TransactionsTabProps {
   categoryFilter: string;
   /** Atualiza o filtro global por categoria. */
   onCategoryFilterChange: (value: string) => void;
+  /** Filtros de tipo e situação compartilhados com os atalhos da Dashboard. */
+  typeFilter: "all" | TransactionType;
+  onTypeFilterChange: (value: "all" | TransactionType) => void;
+  statusFilter: "all" | TransactionStatus;
+  onStatusFilterChange: (value: "all" | TransactionStatus) => void;
+  showAllMonths: boolean;
+  onShowAllMonthsChange: (showAllMonths: boolean) => void;
   /** Período global no formato YYYY-MM. */
   selectedMonth: string;
   /** Cadastra uma transação validada. */
@@ -81,18 +91,28 @@ export default function TransactionsTab({
   onSearchChange,
   categoryFilter,
   onCategoryFilterChange,
+  typeFilter,
+  onTypeFilterChange,
+  statusFilter,
+  onStatusFilterChange,
+  showAllMonths,
+  onShowAllMonthsChange,
   selectedMonth,
   onAdd,
   onEdit,
   onRemove,
   onToggleStatus,
 }: TransactionsTabProps) {
-  /** Armazena o tipo escolhido como filtro da lista. */
-  const [typeFilter, setTypeFilter] = useState<"all" | TransactionType>("all");
-  /** Armazena a situação escolhida como filtro da lista. */
-  const [statusFilter, setStatusFilter] = useState<"all" | TransactionStatus>("all");
+  const salaryCategory = categories.find((category) =>
+    isSalaryCategoryName(category.name),
+  );
+  const defaultExpenseCategory =
+    categories.find((category) => !isSalaryCategoryName(category.name)) ??
+    categories[0];
   /** Guarda o identificador do registro em edição ou null para novo cadastro. */
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Registra se a categoria foi escolhida manualmente no formulário atual. */
+  const [hasManuallySelectedCategory, setHasManuallySelectedCategory] = useState(false);
   /** Controla o aviso de validação visível junto ao formulário. */
   const [formError, setFormError] = useState("");
   /** Mantém os campos do formulário sincronizados com a digitação. */
@@ -100,24 +120,26 @@ export default function TransactionsTab({
     description: "",
     amount: "",
     type: "expense",
-    categoryId: categories[0]?.id ?? "",
-    date: "",
+    categoryId: defaultExpenseCategory?.id ?? "",
+    date: null,
     status: "paid",
     isRecurring: false,
   }));
 
-  /** Mantém a data padrão alinhada ao mês atual sem sobrescrever uma edição. */
+  /** Pré-preenche apenas novos lançamentos ainda sem data selecionada. */
   const effectiveDate = editingId
-    ? formValues.date
-    : selectedMonth && !formValues.date.startsWith(selectedMonth)
-      ? `${selectedMonth}-01`
-      : formValues.date;
+    ? formValues.date ?? ""
+    : formValues.date ?? (selectedMonth ? `${selectedMonth}-01` : "");
   /** Evita enviar uma categoria antiga que não existe mais na lista atual. */
+  const fallbackCategoryId =
+    formValues.type === "income"
+      ? salaryCategory?.id ?? categories[0]?.id ?? ""
+      : defaultExpenseCategory?.id ?? "";
   const effectiveCategoryId = categories.some(
     (category) => category.id === formValues.categoryId,
   )
     ? formValues.categoryId
-    : categories[0]?.id ?? "";
+    : fallbackCategoryId;
 
   /** Atualiza apenas um campo, preservando os demais valores preenchidos. */
   function updateFormValue<Key extends keyof TransactionFormValues>(
@@ -135,16 +157,31 @@ export default function TransactionsTab({
       description: "",
       amount: "",
       type: "expense",
-      categoryId: categories[0]?.id ?? "",
-      date: "",
+      categoryId: defaultExpenseCategory?.id ?? "",
+      date: null,
       status: "paid",
       isRecurring: false,
     });
+    setHasManuallySelectedCategory(false);
+  }
+
+  /** Prefere Salário ao alternar para receita, salvo escolha manual anterior. */
+  function changeTransactionType(type: TransactionType): void {
+    updateFormValue("type", type);
+    if (!hasManuallySelectedCategory) {
+      updateFormValue(
+        "categoryId",
+        type === "income"
+          ? salaryCategory?.id ?? categories[0]?.id ?? ""
+          : defaultExpenseCategory?.id ?? "",
+      );
+    }
   }
 
   /** Carrega os campos do lançamento selecionado no formulário. */
   function startEditing(transaction: Transaction): void {
     setEditingId(transaction.id);
+    setHasManuallySelectedCategory(true);
     setFormError("");
     setFormValues({
       description: transaction.description,
@@ -222,6 +259,65 @@ export default function TransactionsTab({
       (typeFilter === "all" || transaction.type === typeFilter) &&
       (statusFilter === "all" || transaction.status === statusFilter),
   );
+  const categoryOptions: CustomSelectOption[] = categories.map((category) => ({
+    value: category.id,
+    label: category.name,
+    color: category.color,
+  }));
+  const categoryFilterOptions: CustomSelectOption[] = [
+    { value: "all", label: "Todas as categorias" },
+    ...categoryOptions,
+  ];
+  const transactionTypeOptions: CustomSelectOption[] = [
+    {
+      value: "expense",
+      label: "Despesa",
+      color: "#fb7185",
+      subtitle: "Dinheiro que sai",
+    },
+    {
+      value: "income",
+      label: "Receita",
+      color: "#34d399",
+      subtitle: "Dinheiro que entra",
+    },
+  ];
+  const paymentOptions: CustomSelectOption[] = [
+    {
+      value: "paid",
+      label: "Pago",
+      color: "#34d399",
+      subtitle: "Já foi recebido ou quitado",
+    },
+    {
+      value: "pending",
+      label: "Pendente",
+      color: "#fbbf24",
+      subtitle: "Ainda está previsto",
+    },
+  ];
+  const periodOptions: CustomSelectOption[] = [
+    { value: "selected", label: "Mês selecionado" },
+    { value: "all", label: "Todos os meses" },
+  ];
+  const typeFilterOptions: CustomSelectOption[] = [
+    { value: "all", label: "Todos os tipos" },
+    {
+      value: "income",
+      label: "Receitas",
+      color: "#34d399",
+    },
+    {
+      value: "expense",
+      label: "Despesas",
+      color: "#fb7185",
+    },
+  ];
+  const statusFilterOptions: CustomSelectOption[] = [
+    { value: "all", label: "Todas as situações" },
+    { value: "paid", label: "Pagas", color: "#34d399" },
+    { value: "pending", label: "Pendentes", color: "#fbbf24" },
+  ];
 
   /** Alterna o estado de pagamento de um item sem alterar os demais dados. */
   function toggleStatus(transaction: Transaction): void {
@@ -288,53 +384,42 @@ export default function TransactionsTab({
           </label>
           <label className="text-xs font-medium text-zinc-400">
             Tipo
-            <select
-              className={fieldClassName}
+            <CustomSelect
+              ariaLabel="Tipo da transação"
               value={formValues.type}
-              onChange={(event) =>
-                updateFormValue("type", event.target.value as TransactionType)
-              }
-            >
-              <option value="expense">Despesa</option>
-              <option value="income">Receita</option>
-            </select>
+              options={transactionTypeOptions}
+              onChange={(value) => changeTransactionType(value as TransactionType)}
+            />
           </label>
           <label className="text-xs font-medium text-zinc-400">
             Categoria
-            <select
-              className={fieldClassName}
+            <CustomSelect
+              ariaLabel="Categoria da transação"
               value={effectiveCategoryId}
-              onChange={(event) => updateFormValue("categoryId", event.target.value)}
-            >
-              <option value="">Selecione uma categoria</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
+              options={categoryOptions}
+              onChange={(value) => {
+                setHasManuallySelectedCategory(true);
+                updateFormValue("categoryId", value);
+              }}
+              placeholder="Selecione uma categoria"
+            />
           </label>
           <label className="text-xs font-medium text-zinc-400">
             Data
-            <input
-              className={`${fieldClassName} [color-scheme:dark]`}
-              type="date"
+            <CustomDatePicker
+              ariaLabel="Data da transação"
               value={effectiveDate}
-              onChange={(event) => updateFormValue("date", event.target.value)}
+              onChange={(value) => updateFormValue("date", value)}
             />
           </label>
           <label className="text-xs font-medium text-zinc-400">
             Pagamento
-            <select
-              className={fieldClassName}
+            <CustomSelect
+              ariaLabel="Situação de pagamento"
               value={formValues.status}
-              onChange={(event) =>
-                updateFormValue("status", event.target.value as TransactionStatus)
-              }
-            >
-              <option value="paid">Pago</option>
-              <option value="pending">Pendente</option>
-            </select>
+              options={paymentOptions}
+              onChange={(value) => updateFormValue("status", value as TransactionStatus)}
+            />
           </label>
           <div className="flex items-end justify-between gap-4 sm:col-span-2 lg:col-span-4">
             <label className="flex items-center gap-2 pb-2 text-sm text-zinc-400">
@@ -362,7 +447,7 @@ export default function TransactionsTab({
         </form>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70">
+      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70">
         <div className="flex flex-col gap-3 border-b border-zinc-800 p-4 sm:flex-row sm:items-center sm:p-5">
           <label className="relative min-w-0 flex-1">
             <Search
@@ -379,43 +464,44 @@ export default function TransactionsTab({
               placeholder="Buscar descrição ou categoria..."
             />
           </label>
-          <select
-            aria-label="Filtrar por categoria"
-            className={`${fieldClassName} mt-0 sm:w-44`}
-            value={categoryFilter}
-            onChange={(event) => onCategoryFilterChange(event.target.value)}
-          >
-            <option value="all">Todas as categorias</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Filtrar por tipo"
-            className={`${fieldClassName} mt-0 sm:w-36`}
-            value={typeFilter}
-            onChange={(event) =>
-              setTypeFilter(event.target.value as "all" | TransactionType)
-            }
-          >
-            <option value="all">Todos os tipos</option>
-            <option value="income">Receitas</option>
-            <option value="expense">Despesas</option>
-          </select>
-          <select
-            aria-label="Filtrar por situação"
-            className={`${fieldClassName} mt-0 sm:w-36`}
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(event.target.value as "all" | TransactionStatus)
-            }
-          >
-            <option value="all">Todas as situações</option>
-            <option value="paid">Pagas</option>
-            <option value="pending">Pendentes</option>
-          </select>
+          <div className="min-w-0 sm:w-44">
+            <CustomSelect
+              ariaLabel="Filtrar por categoria"
+              value={categoryFilter}
+              options={categoryFilterOptions}
+              onChange={onCategoryFilterChange}
+              className="mt-0"
+            />
+          </div>
+          <div className="min-w-0 sm:w-40">
+            <CustomSelect
+              ariaLabel="Filtrar por período"
+              value={showAllMonths ? "all" : "selected"}
+              options={periodOptions}
+              onChange={(value) => onShowAllMonthsChange(value === "all")}
+              className="mt-0"
+            />
+          </div>
+          <div className="min-w-0 sm:w-36">
+            <CustomSelect
+              ariaLabel="Filtrar por tipo"
+              value={typeFilter}
+              options={typeFilterOptions}
+              onChange={(value) => onTypeFilterChange(value as "all" | TransactionType)}
+              className="mt-0"
+            />
+          </div>
+          <div className="min-w-0 sm:w-36">
+            <CustomSelect
+              ariaLabel="Filtrar por situação"
+              value={statusFilter}
+              options={statusFilterOptions}
+              onChange={(value) =>
+                onStatusFilterChange(value as "all" | TransactionStatus)
+              }
+              className="mt-0"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -448,12 +534,19 @@ export default function TransactionsTab({
                     </td>
                     <td className="px-4 py-4">
                       <span
-                        className="rounded-full px-2.5 py-1 text-xs font-medium"
+                        className="category-color-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
                         style={{
                           color: category?.color ?? "#a1a1aa",
                           backgroundColor: category ? `${category.color}20` : "#27272a",
                         }}
                       >
+                        {category && (
+                          <span
+                            aria-hidden="true"
+                            className="category-color-swatch size-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: category.color }}
+                          />
+                        )}
                         {category?.name ?? "Sem categoria"}
                       </span>
                     </td>

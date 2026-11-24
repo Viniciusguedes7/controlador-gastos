@@ -4,12 +4,19 @@
  * Renderiza o resumo do mês, os limites de orçamento e as movimentações recentes.
  */
 
-import { ArrowDownRight, ArrowUpRight, CalendarClock, CreditCard, ReceiptText } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  CalendarClock,
+  CreditCard,
+  ReceiptText,
+  Trash2,
+} from "lucide-react";
 import type { Category, Transaction } from "../types/finance";
 import type { CategorySpending } from "../hooks/useFinance";
+import { isSalaryCategoryName } from "../lib/category-utils";
 // Apresenta a comparação histórica das duas séries de movimentações.
 import ComparisonChart from "./ComparisonChart";
-import NetWorthChart from "./NetWorthChart";
 
 /** Propriedades calculadas pela página e entregues ao Dashboard. */
 interface DashboardTabProps {
@@ -29,10 +36,16 @@ interface DashboardTabProps {
   selectedYear: number;
   /** Categorias completas para associar nome e cor aos lançamentos. */
   categories: Category[];
+  /** Limite mensal pessoal configurado na área de perfil. */
+  monthlySpendingLimit: number | null;
   /** Ação que leva o usuário à lista completa de transações. */
   onViewTransactions: () => void;
+  /** Abre a lista de despesas pendentes sem limitar o mês. */
+  onViewPendingExpenses: () => void;
   /** Marca uma despesa pendente como paga. */
   onToggleStatus: (transactionId: string) => void;
+  /** Exclui uma transação depois de confirmação na interface. */
+  onRemoveTransaction: (transactionId: string) => void;
 }
 
 /** Formata valores para a moeda local brasileira. */
@@ -93,14 +106,22 @@ export default function DashboardTab({
   selectedMonth,
   selectedYear,
   categories,
+  monthlySpendingLimit,
   onViewTransactions,
+  onViewPendingExpenses,
   onToggleStatus,
+  onRemoveTransaction,
 }: DashboardTabProps) {
   const monthlyBudget = categories.reduce(
-    (total, category) => total + (category.budgetLimit > 0 ? category.budgetLimit : 0),
+    (total, category) =>
+      total +
+      (!isSalaryCategoryName(category.name) && category.budgetLimit > 0
+        ? category.budgetLimit
+        : 0),
     0,
   );
-  const availableBudget = monthlyBudget > 0 ? monthlyBudget : totalIncome;
+  const availableBudget =
+    monthlySpendingLimit ?? (monthlyBudget > 0 ? monthlyBudget : totalIncome);
   const remainingBudget = availableBudget - totalExpenses;
   const consumedPercentage =
     availableBudget > 0
@@ -122,6 +143,13 @@ export default function DashboardTab({
     (total, transaction) => total + transaction.amount,
     0,
   );
+  const pendingIncomes = transactions
+    .filter((transaction) => transaction.type === "income" && transaction.status === "pending")
+    .sort((first, second) => first.date.localeCompare(second.date));
+  const totalPendingIncome = pendingIncomes.reduce(
+    (total, transaction) => total + transaction.amount,
+    0,
+  );
   /** Mantém somente os seis lançamentos recentes do mês selecionado. */
   const recentTransactions = transactions
     .filter((transaction) => transaction.date.startsWith(selectedMonth))
@@ -130,10 +158,19 @@ export default function DashboardTab({
 
   /** Projeta cada indicador no mesmo cartão para manter a hierarquia uniforme. */
   const summaryCards = [
-    { key: "income", amount: totalIncome, note: "Entradas registradas neste mês" },
+    { key: "income", amount: totalIncome, note: "Entradas recebidas neste mês" },
     { key: "expense", amount: totalExpenses, note: "Saídas registradas neste mês" },
     { key: "balance", amount: currentBalance, note: "Receitas menos despesas" },
   ] as const;
+
+  function removePendingIncome(transaction: Transaction): void {
+    const shouldRemove = window.confirm(
+      `Deseja excluir a receita pendente "${transaction.description}"?`,
+    );
+    if (shouldRemove) {
+      onRemoveTransaction(transaction.id);
+    }
+  }
 
   return (
     <section aria-label="Resumo financeiro" className="space-y-6">
@@ -169,7 +206,9 @@ export default function DashboardTab({
               Quanto ainda pode gastar no mês
             </h2>
             <p className="mt-1 text-xs text-zinc-500">
-              {monthlyBudget > 0
+              {monthlySpendingLimit !== null
+                ? "Com base no limite pessoal definido no Perfil."
+                : monthlyBudget > 0
                 ? "Com base nos limites definidos nas categorias."
                 : "Com base nas receitas registradas neste mês."}
             </p>
@@ -230,7 +269,16 @@ export default function DashboardTab({
                 Total em aberto: {currencyFormatter.format(totalPendingExpenses)}
               </p>
             </div>
-            <CalendarClock aria-hidden="true" size={19} className="shrink-0 text-amber-300" />
+            <div className="flex shrink-0 items-center gap-2">
+              <CalendarClock aria-hidden="true" size={19} className="text-amber-300" />
+              <button
+                type="button"
+                onClick={onViewPendingExpenses}
+                className="rounded-lg border border-zinc-700 px-2.5 py-2 text-xs font-medium text-violet-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                Ver todas as despesas
+              </button>
+            </div>
           </div>
           <h3 className="mt-5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
             Vencem nos próximos 7 dias
@@ -289,59 +337,60 @@ export default function DashboardTab({
         <article className="min-w-0 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-zinc-100">Todas as despesas pendentes</h2>
+              <h2 className="text-base font-semibold text-zinc-100">Receitas pendentes</h2>
               <p className="mt-1 text-xs text-zinc-500">
-                {pendingExpenses.length}{" "}
-                {pendingExpenses.length === 1 ? "conta em aberto" : "contas em aberto"} ·{" "}
-                {currencyFormatter.format(totalPendingExpenses)}
+                {pendingIncomes.length}{" "}
+                {pendingIncomes.length === 1 ? "entrada prevista" : "entradas previstas"} ·{" "}
+                {currencyFormatter.format(totalPendingIncome)}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onViewTransactions}
-              className="shrink-0 text-xs font-medium text-violet-300 transition hover:text-violet-200"
-            >
-              Ver transações
-            </button>
           </div>
-          {pendingExpenses.length > 0 ? (
-            <ul className="mt-3 divide-y divide-zinc-800/80">
-              {pendingExpenses.slice(0, 5).map((transaction) => (
-                <li key={transaction.id} className="flex min-w-0 items-center gap-3 py-3">
+          {pendingIncomes.length > 0 ? (
+            <ul className="mt-3 max-h-80 divide-y divide-zinc-800/80 overflow-y-auto">
+              {pendingIncomes.map((transaction) => (
+                <li
+                  key={transaction.id}
+                  className="flex min-w-0 flex-wrap items-center gap-3 py-3"
+                >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-zinc-200">
                       {transaction.description}
                     </p>
-                    <p className="mt-1 text-xs text-zinc-500">{formatDate(transaction.date)}</p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      Prevista para {formatDate(transaction.date)}
+                    </p>
                   </div>
                   <span className="shrink-0 text-xs font-semibold text-zinc-200">
                     {currencyFormatter.format(transaction.amount)}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => onToggleStatus(transaction.id)}
-                    className="shrink-0 rounded-lg bg-emerald-400/10 px-2.5 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
-                    aria-label={`Pagar ${transaction.description}`}
-                  >
-                    Pagar
-                  </button>
+                  <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => onToggleStatus(transaction.id)}
+                      className="min-h-10 rounded-lg bg-emerald-400/10 px-2.5 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20"
+                      aria-label={`Marcar ${transaction.description} como recebido/pago`}
+                    >
+                      Marcar como recebido
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removePendingIncome(transaction)}
+                      className="inline-flex size-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-rose-400/10 hover:text-rose-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+                      aria-label={`Excluir receita ${transaction.description}`}
+                    >
+                      <Trash2 aria-hidden="true" size={16} />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
           ) : (
             <p className="mt-3 rounded-xl border border-dashed border-zinc-700 px-3 py-5 text-center text-sm text-zinc-500">
-              Você não tem despesas pendentes.
-            </p>
-          )}
-          {pendingExpenses.length > 5 && (
-            <p className="mt-2 text-center text-xs text-zinc-500">
-              Mais {pendingExpenses.length - 5} contas pendentes.
+              Você não tem receitas pendentes.
             </p>
           )}
         </article>
       </section>
-
-      <NetWorthChart transactions={transactions} selectedMonth={selectedMonth} />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6">
@@ -457,12 +506,19 @@ export default function DashboardTab({
                       <p className="mt-1 text-xs text-zinc-500">{formatDate(transaction.date)}</p>
                     </div>
                     <span
-                      className="hidden max-w-28 truncate rounded-full px-2.5 py-1 text-[11px] font-medium sm:inline-block"
+                      className="category-color-badge hidden max-w-28 items-center gap-1.5 truncate rounded-full px-2.5 py-1 text-[11px] font-medium sm:inline-flex"
                       style={{
                         color: category?.color ?? "#a1a1aa",
                         backgroundColor: category ? `${category.color}20` : "#27272a",
                       }}
                     >
+                      {category && (
+                        <span
+                          aria-hidden="true"
+                          className="category-color-swatch size-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: category.color }}
+                        />
+                      )}
                       {category?.name ?? "Sem categoria"}
                     </span>
                     <p

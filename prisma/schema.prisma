@@ -56,23 +56,29 @@ model Session {
 // Representa contas locais e relaciona autenticação aos dados financeiros.
 model User {
   // Identificador primário compatível com o adaptador do NextAuth.
-  id            String          @id @default(cuid())
+  id                   String        @id @default(cuid())
   // Nome recebido do provedor, que pode não estar disponível.
-  name          String?
+  name                 String?
   // E-mail opcional que o adaptador mantém único quando informado.
-  email         String?         @unique
+  email                String?       @unique
   // URL da foto de perfil fornecida pelo provedor.
-  image         String?
+  image                String?
+  // Salário mensal opcional informado pelo usuário na área de perfil.
+  monthlySalary        Float?
+  // Limite mensal opcional de gastos definido pelo usuário.
+  monthlySpendingLimit Float?
+  // Indica se a conta já concluiu a configuração inicial.
+  hasCompletedOnboarding Boolean @default(false)
   // Data em que o e-mail foi confirmado pelo provedor.
-  emailVerified DateTime?
+  emailVerified        DateTime?
   // Contas Google ou de outros provedores associadas ao usuário.
-  accounts      Account[]
+  accounts             Account[]
   // Sessões ativas do usuário no banco.
-  sessions      Session[]
+  sessions             Session[]
   // Categorias que pertencem exclusivamente a este usuário.
-  categories    Category[]
+  categories           Category[]
   // Transações que pertencem exclusivamente a este usuário.
-  transactions  Transaction[]
+  transactions         Transaction[]
 }
 
 // Guarda códigos temporários de validação exigidos pelo adaptador.
@@ -98,6 +104,8 @@ model Category {
   color       String
   // Limite mensal planejado em reais.
   budgetLimit Float
+  // Distingue a categoria Salário criada automaticamente de categorias antigas.
+  isSystemDefault Boolean @default(false)
   // Identificador do usuário proprietário da categoria.
   userId      String
   // Relação obrigatória que associa a categoria ao proprietário.

@@ -36,7 +36,7 @@ function calculateNetWorth(
 
   for (const transaction of transactions) {
     const key = transaction.date.slice(0, 7);
-    if (key > selectedMonth || (transaction.type === "expense" && transaction.status !== "paid")) {
+    if (key > selectedMonth || transaction.status !== "paid") {
       continue;
     }
 
@@ -101,7 +101,7 @@ export default function NetWorthChart({ transactions, selectedMonth }: NetWorthC
           Evolução do Patrimônio
         </h2>
         <p className="mt-1 text-xs text-zinc-500">
-          Saldo acumulado nos últimos 12 meses, considerando despesas pagas.
+          Saldo acumulado nos últimos 12 meses, considerando somente transações pagas.
         </p>
       </div>
 

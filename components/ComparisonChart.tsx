@@ -4,6 +4,7 @@
 import { useId, useMemo, useState } from "react";
 // Reutiliza o contrato financeiro compartilhado pelo restante da aplicação.
 import type { Transaction } from "../types/finance";
+import CustomSelect from "./CustomSelect";
 
 // Define os dois intervalos oferecidos pelo seletor do gráfico.
 type PeriodLength = 6 | 12;
@@ -87,7 +88,7 @@ function calculateMonthlyComparison(
       currentTotals.expenses += transaction.amount;
     }
 
-    // Conta também transações pendentes, como nos totais atuais do dashboard.
+    // Inclui pendências neste comparativo para representar previsões de entrada e saída.
     currentTotals.transactionCount += 1;
     totalsByMonth.set(monthKey, currentTotals);
   }
@@ -133,8 +134,11 @@ export default function ComparisonChart({
   // Guarda o mês ativo para exibir seus valores detalhados.
   const [activeMonthKey, setActiveMonthKey] = useState<string | null>(null);
   // Associa o seletor e o tooltip aos controles acessíveis do componente.
-  const selectorId = useId();
   const tooltipId = useId();
+  const periodOptions = [
+    { value: "6", label: "Últimos 6 meses" },
+    { value: "12", label: "Últimos 12 meses" },
+  ];
 
   // Recalcula os agrupamentos quando os dados, o filtro ou o período mudarem.
   const monthlyData = useMemo(
@@ -195,18 +199,13 @@ export default function ComparisonChart({
 
         {/* Oferece os dois intervalos de forma compacta e compatível com teclado. */}
         <div className="flex shrink-0 items-center gap-2">
-          <label htmlFor={selectorId} className="sr-only">
-            Período do gráfico
-          </label>
-          <select
-            id={selectorId}
-            value={periodLength}
-            onChange={(event) => handlePeriodChange(event.currentTarget.value)}
-            className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-300 outline-none transition focus-visible:ring-2 focus-visible:ring-violet-400"
-          >
-            <option value={6}>Últimos 6 meses</option>
-            <option value={12}>Últimos 12 meses</option>
-          </select>
+          <CustomSelect
+            ariaLabel="Período do gráfico"
+            value={String(periodLength)}
+            options={periodOptions}
+            onChange={handlePeriodChange}
+            className="mt-0 w-44"
+          />
         </div>
       </div>
 

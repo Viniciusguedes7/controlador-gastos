@@ -6,22 +6,26 @@
 
 // Importa os ícones da navegação e os controles de autenticação visual.
 import {
-  CalendarDays,
+  BookOpenText,
   ChartNoAxesCombined,
   CirclePlus,
   Layers3,
   LogOut,
+  Menu,
+  RotateCcw,
+  UserRound,
   WalletCards,
+  X,
 } from "lucide-react";
-// Otimiza a imagem de perfil enviada pelo provedor OAuth.
-import Image from "next/image";
 // Lê o estado da sessão e oferece as ações OAuth do NextAuth.
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useEffect, useRef, useState } from "react";
 // Reutiliza o alternador em qualquer ponto da aplicação.
+import CustomMonthPicker from "./CustomMonthPicker";
 import ThemeToggle from "./ThemeToggle";
 
 /** Identifica qual seção está visível na página principal. */
-export type FinanceTab = "dashboard" | "transactions" | "categories";
+export type FinanceTab = "dashboard" | "transactions" | "categories" | "profile";
 
 /** Propriedades necessárias para sincronizar a navegação com a página. */
 interface NavbarProps {
@@ -35,6 +39,8 @@ interface NavbarProps {
   onMonthChange: (month: string) => void;
   /** Atalho para abrir o formulário de uma nova transação. */
   onNewTransaction: () => void;
+  /** Abre a configuração guiada com os dados financeiros atuais. */
+  onReviewTutorial: () => void;
 }
 
 /** Descreve os botões de navegação para evitar repetir a marcação. */
@@ -51,9 +57,82 @@ export default function Navbar({
   onTabChange,
   onMonthChange,
   onNewTransaction,
+  onReviewTutorial,
 }: NavbarProps) {
   // Consulta a sessão do usuário atual para exibir login ou perfil.
   const { data: session, status } = useSession();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
+  const helpCloseButtonRef = useRef<HTMLButtonElement>(null);
+
+  function closeMenu(): void {
+    setIsMenuOpen(false);
+    menuButtonRef.current?.focus();
+  }
+
+  function closeHelp(): void {
+    setIsHelpOpen(false);
+    menuButtonRef.current?.focus();
+  }
+
+  // Mantém o foco no menu lateral e oferece o fechamento pelo teclado.
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    const drawer = drawerRef.current;
+    const focusableElements = drawer?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    focusableElements?.[0]?.focus();
+
+    function handleMenuKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setIsMenuOpen(false);
+        menuButtonRef.current?.focus();
+        return;
+      }
+
+      if (event.key === "Tab" && focusableElements?.length) {
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+        if (event.shiftKey && document.activeElement === firstElement) {
+          event.preventDefault();
+          lastElement.focus();
+        } else if (!event.shiftKey && document.activeElement === lastElement) {
+          event.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleMenuKeyDown);
+    return () => document.removeEventListener("keydown", handleMenuKeyDown);
+  }, [isMenuOpen]);
+
+  // Mantém a navegação por teclado dentro do guia e permite fechá-lo com Escape.
+  useEffect(() => {
+    if (!isHelpOpen) {
+      return;
+    }
+
+    helpCloseButtonRef.current?.focus();
+    function handleHelpKeyDown(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        setIsHelpOpen(false);
+        menuButtonRef.current?.focus();
+      } else if (event.key === "Tab") {
+        event.preventDefault();
+        helpCloseButtonRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleHelpKeyDown);
+    return () => document.removeEventListener("keydown", handleHelpKeyDown);
+  }, [isHelpOpen]);
 
   // Inicia OAuth Google e registra falhas de configuração do provedor.
   async function handleSignIn(): Promise<void> {
@@ -78,6 +157,7 @@ export default function Navbar({
   }
 
   return (
+    <>
     <header className="sticky top-0 z-20 border-b border-zinc-800/90 bg-zinc-950/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -92,17 +172,11 @@ export default function Navbar({
               <p className="text-xs text-zinc-500">Seu dinheiro, com mais clareza</p>
             </div>
           </div>
-          <label className="flex w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300 sm:w-auto sm:justify-start lg:hidden sm:px-3">
-            <CalendarDays aria-hidden="true" size={16} className="text-zinc-500" />
-            <span className="sr-only">Mês de referência</span>
-            <input
-              aria-label="Mês de referência"
-              className="w-[8.25rem] max-w-full whitespace-nowrap bg-transparent text-xs outline-none [color-scheme:dark]"
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => onMonthChange(event.target.value)}
-            />
-          </label>
+          <CustomMonthPicker
+            value={selectedMonth}
+            onChange={onMonthChange}
+            className="w-full shrink-0 sm:w-auto lg:hidden"
+          />
         </div>
 
         <nav
@@ -118,7 +192,7 @@ export default function Navbar({
                 onClick={() => onTabChange(id)}
                 className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[11px] font-medium transition sm:gap-2 sm:px-3 sm:text-sm lg:flex-none ${
                   activeTab === id
-                    ? "bg-zinc-800 text-white shadow-sm"
+                    ? "nav-active bg-zinc-800 text-white shadow-sm"
                     : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100"
                 }`}
               >
@@ -128,17 +202,11 @@ export default function Navbar({
             ))}
           </div>
 
-          <label className="hidden items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 lg:flex">
-            <CalendarDays aria-hidden="true" size={16} className="text-zinc-500" />
-            <span className="sr-only">Mês de referência</span>
-            <input
-              aria-label="Mês de referência"
-              className="w-32 bg-transparent text-xs outline-none [color-scheme:dark]"
-              type="month"
-              value={selectedMonth}
-              onChange={(event) => onMonthChange(event.target.value)}
-            />
-          </label>
+          <CustomMonthPicker
+            value={selectedMonth}
+            onChange={onMonthChange}
+            className="hidden w-40 lg:block"
+          />
           <button
             type="button"
             onClick={onNewTransaction}
@@ -147,57 +215,169 @@ export default function Navbar({
             <CirclePlus aria-hidden="true" size={16} />
             <span>+ Nova transação</span>
           </button>
-          {/* Mantém o seletor de tema acessível junto das ações principais. */}
+          {/* Mantém o menu da conta acessível no cabeçalho. */}
           <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
-          <ThemeToggle />
-          {/* Exibe controles de conta somente depois de resolver a sessão. */}
-          {status !== "loading" && session?.user ? (
-            <div className="flex min-w-0 items-center gap-2">
-              {/* Mostra a foto do perfil ou uma inicial quando o provedor não envia imagem. */}
-              {session.user.image ? (
-                <Image
-                  src={session.user.image}
-                  alt=""
-                  width={32}
-                  height={32}
-                  unoptimized
-                  className="size-8 rounded-full object-cover"
-                />
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className="flex size-8 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold text-zinc-200"
-                >
-                  {(session.user.name ?? session.user.email ?? "U").slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              {/* Mantém o nome legível em telas médias e grandes. */}
-              <span className="hidden max-w-32 truncate text-xs text-zinc-300 sm:inline">
-                {session.user.name ?? session.user.email}
-              </span>
-              {/* Permite encerrar a sessão da conta atual. */}
+            {status !== "loading" && session?.user ? (
+              <button
+                ref={menuButtonRef}
+                type="button"
+                aria-label={isMenuOpen ? "Fechar menu" : "Abrir menu"}
+                aria-expanded={isMenuOpen}
+                aria-controls="account-drawer"
+                onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
+                className="inline-flex size-11 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-200 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                {isMenuOpen ? (
+                  <X aria-hidden="true" size={19} />
+                ) : (
+                  <Menu aria-hidden="true" size={19} />
+                )}
+              </button>
+            ) : status === "unauthenticated" ? (
               <button
                 type="button"
-                onClick={handleSignOut}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-800 px-3 py-2 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800"
+                onClick={handleSignIn}
+                className="min-w-max rounded-xl bg-violet-500 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-violet-400 sm:px-4 sm:text-sm"
               >
-                <LogOut aria-hidden="true" size={15} />
-                Sair
+                Entrar com Google
               </button>
-            </div>
-          ) : status === "unauthenticated" ? (
-            /* Solicita a autenticação Google antes de mostrar dados pessoais. */
-            <button
-              type="button"
-              onClick={handleSignIn}
-              className="min-w-max rounded-xl bg-violet-500 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-violet-400 sm:px-4 sm:text-sm"
-            >
-              Entrar com Google
-            </button>
-          ) : null}
+            ) : null}
           </div>
         </nav>
       </div>
     </header>
+      {isMenuOpen && (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            aria-label="Fechar menu"
+            onClick={closeMenu}
+            className="absolute inset-0 h-full w-full bg-black/55"
+          />
+          <aside
+            id="account-drawer"
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-drawer-title"
+            className="absolute right-0 top-0 flex h-dvh w-full max-w-sm flex-col border-l border-zinc-800 bg-zinc-900 p-5 shadow-2xl"
+          >
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <div>
+                <h2 id="account-drawer-title" className="font-semibold text-zinc-100">
+                  Menu da conta
+                </h2>
+                <p className="mt-1 max-w-64 truncate text-xs text-zinc-400">
+                  {session?.user?.name ?? session?.user?.email}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Fechar menu"
+                onClick={closeMenu}
+                className="inline-flex size-11 items-center justify-center rounded-xl text-zinc-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <X aria-hidden="true" size={19} />
+              </button>
+            </div>
+
+            <nav aria-label="Menu da conta">
+              <button
+                type="button"
+                aria-current={activeTab === "profile" ? "page" : undefined}
+                onClick={() => {
+                  onTabChange("profile");
+                  closeMenu();
+                }}
+                className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium transition ${
+                  activeTab === "profile"
+                    ? "drawer-nav-active bg-violet-500/15 text-violet-200"
+                    : "text-zinc-300 hover:bg-zinc-800"
+                }`}
+              >
+                <UserRound aria-hidden="true" size={18} />
+                Perfil
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  setIsHelpOpen(true);
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <BookOpenText aria-hidden="true" size={18} />
+                Como funciona
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onReviewTutorial();
+                  closeMenu();
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <RotateCcw aria-hidden="true" size={18} />
+                Rever tutorial
+              </button>
+              <div className="my-4 border-t border-zinc-800 pt-4">
+                <ThemeToggle showLabel />
+              </div>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="mt-1 flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-rose-300 transition hover:bg-rose-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              >
+                <LogOut aria-hidden="true" size={18} />
+                Sair da conta
+              </button>
+            </nav>
+          </aside>
+        </div>
+      )}
+      {isHelpOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <button
+            type="button"
+            aria-label="Fechar guia"
+            onClick={closeHelp}
+            className="absolute inset-0 h-full w-full"
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="how-it-works-title"
+            className="relative z-10 w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="how-it-works-title" className="text-lg font-semibold text-zinc-100">
+                  Como funciona
+                </h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  Um guia rápido para organizar seu dinheiro.
+                </p>
+              </div>
+              <button
+                type="button"
+                ref={helpCloseButtonRef}
+                aria-label="Fechar guia"
+                onClick={closeHelp}
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl text-zinc-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <X aria-hidden="true" size={19} />
+              </button>
+            </div>
+            <ul className="mt-5 space-y-3 text-sm leading-6 text-zinc-300">
+              <li><strong className="text-zinc-100">Transações:</strong> registre receitas e despesas com data, categoria e situação paga ou pendente.</li>
+              <li><strong className="text-zinc-100">Categorias:</strong> organize os lançamentos e defina limites mensais por grupo.</li>
+              <li><strong className="text-zinc-100">Dashboard:</strong> acompanhe o resumo do mês, os gastos por categoria e as análises históricas.</li>
+              <li><strong className="text-zinc-100">Orçamento:</strong> o limite pessoal do Perfil orienta o resumo mensal; sem ele, o app usa a soma dos limites das categorias e, por fim, as receitas registradas.</li>
+              <li><strong className="text-zinc-100">Dados:</strong> cada conta vê seus próprios registros; marcar uma despesa como paga não altera o valor nem a data.</li>
+            </ul>
+          </section>
+        </div>
+      )}
+    </>
   );
 }

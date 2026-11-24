@@ -166,8 +166,68 @@ body {
   color: #6d28d9 !important;
 }
 
-/* Define o esquema claro para campos de mês e data do navegador. */
-:root[data-theme="light"] input[type="month"],
-:root[data-theme="light"] input[type="date"] {
-  color-scheme: light;
+/* Mantém o nome da categoria legível sem perder sua identificação por cor. */
+:root[data-theme="light"] .category-color-badge {
+  color: #27272a !important;
+  border: 1px solid #a1a1aa;
+}
+
+/* Mantém contraste nos destinos ativos da navegação e do menu lateral. */
+:root[data-theme="light"] button.nav-active {
+  color: #18181b !important;
+  background-color: #e4e4e7 !important;
+}
+
+:root[data-theme="light"] button.drawer-nav-active {
+  color: #5b21b6 !important;
+  background-color: #ede9fe !important;
+}
+
+/* Mantém a opção marcada legível dentro dos selects próprios no tema claro. */
+:root[data-theme="light"] button.custom-select-option-active {
+  color: #18181b !important;
+  background-color: #ede9fe !important;
+}
+
+/* Mantém a rolagem dos menus compacta nos dois esquemas de cor. */
+.custom-select-listbox {
+  scrollbar-color: #71717a #18181b;
+  scrollbar-width: thin;
+}
+
+.custom-select-listbox::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-select-listbox::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #18181b;
+}
+
+.custom-select-listbox::-webkit-scrollbar-thumb {
+  border: 1px solid #18181b;
+  border-radius: 999px;
+  background: #71717a;
+}
+
+:root[data-theme="light"] .custom-select-listbox {
+  scrollbar-color: #a1a1aa #f4f4f5;
+}
+
+:root[data-theme="light"] .custom-select-listbox::-webkit-scrollbar-track {
+  background: #f4f4f5;
+}
+
+:root[data-theme="light"] .custom-select-listbox::-webkit-scrollbar-thumb {
+  border-color: #f4f4f5;
+  background: #a1a1aa;
+}
+
+/* Delimita os indicadores mesmo quando a cor escolhida é muito clara. */
+.category-color-swatch {
+  box-shadow: 0 0 0 1px rgb(24 24 27 / 28%);
+}
+
+:root[data-theme="dark"] .category-color-swatch {
+  box-shadow: 0 0 0 1px rgb(244 244 245 / 45%);
 }

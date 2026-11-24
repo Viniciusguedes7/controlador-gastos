@@ -40,3 +40,26 @@ export interface Transaction {
   /** Indica se o lançamento deve ser considerado recorrente. */
   isRecurring: boolean;
 }
+
+/** Preferências financeiras opcionais armazenadas junto à conta do usuário. */
+export interface FinancialProfile {
+  /** Salário mensal em reais, quando informado. */
+  monthlySalary: number | null;
+  /** Limite pessoal de gastos mensais em reais, quando informado. */
+  monthlySpendingLimit: number | null;
+}
+
+/** Dados privados carregados para a conta autenticada. */
+export interface FinanceData {
+  categories: Category[];
+  transactions: Transaction[];
+  profile: FinancialProfile;
+  hasCompletedOnboarding: boolean;
+  shouldShowOnboarding: boolean;
+}
+
+/** Perfil e categorias editáveis pelo assistente inicial ou pelo modo de revisão. */
+export interface GuidedSetupInput {
+  profile: FinancialProfile;
+  categories: Array<Omit<Category, "id"> & { id?: string }>;
+}

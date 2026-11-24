@@ -8,12 +8,19 @@ import {
   deleteCategory,
   deleteTransaction,
   getFinanceData,
+  saveGuidedSetup as persistGuidedSetup,
   toggleTransactionStatus,
   updateCategory,
+  updateFinancialProfile,
   updateTransaction,
 } from "../app/actions/finance";
 // Compartilha os contratos usados tanto pelo banco quanto pelas telas.
-import type { Category, Transaction } from "../types/finance";
+import type {
+  Category,
+  FinancialProfile,
+  GuidedSetupInput,
+  Transaction,
+} from "../types/finance";
 
 // Retorna o mês local no formato exigido pelo seletor de período.
 function getCurrentMonth(): string {
@@ -23,6 +30,14 @@ function getCurrentMonth(): string {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   // Combina ano e mês no formato YYYY-MM.
   return `${now.getFullYear()}-${month}`;
+}
+
+// Retorna o dia civil local sem converter a data para UTC.
+function getLocalToday(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(
+    now.getDate(),
+  ).padStart(2, "0")}`;
 }
 
 // Define os valores derivados usados no painel de orçamento por categoria.
@@ -45,8 +60,19 @@ export function useFinance(userId: string) {
   const [categories, setCategories] = useState<Category[]>([]);
   // Guarda as transações persistidas e as alterações otimistas em andamento.
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  // Mantém as preferências financeiras opcionais do perfil da conta.
+  const [profile, setProfile] = useState<FinancialProfile>({
+    monthlySalary: null,
+    monthlySpendingLimit: null,
+  });
+  // Mantém a conclusão persistida do fluxo inicial desta conta.
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(false);
+  // Diferencia novas contas de perfis legados que já tinham dados salvos.
+  const [shouldShowOnboarding, setShouldShowOnboarding] = useState(false);
   // Controla o período utilizado pelos filtros e indicadores.
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth);
+  // Permite que atalhos da Dashboard abram a lista sem limitar o mês.
+  const [showAllMonths, setShowAllMonths] = useState(false);
   // Guarda o texto livre usado para procurar descrições e categorias.
   const [searchTerm, setSearchTerm] = useState("");
   // Guarda a categoria selecionada ou a opção para visualizar todas.
@@ -67,12 +93,15 @@ export function useFinance(userId: string) {
     let isCurrentRequest = true;
 
     // Busca dados exclusivamente no servidor, onde a sessão é validada novamente.
-    getFinanceData()
+    getFinanceData(getLocalToday())
       .then((data) => {
         // Atualiza a tela somente se esta ainda for a conta ativa.
         if (isCurrentRequest) {
           setCategories(data.categories);
           setTransactions(data.transactions);
+          setProfile(data.profile);
+          setHasCompletedOnboarding(data.hasCompletedOnboarding);
+          setShouldShowOnboarding(data.shouldShowOnboarding);
         }
       })
       .catch((error: unknown) => {
@@ -106,6 +135,48 @@ export function useFinance(userId: string) {
     console.error(message, error);
     // Prefere a mensagem validada pelo servidor e usa texto explícito como fallback.
     setActionError(error instanceof Error ? error.message : message);
+  }
+
+  // Persiste as preferências e atualiza o perfil somente após a confirmação do servidor.
+  async function saveFinancialProfile(input: FinancialProfile): Promise<void> {
+    setActionError("");
+    try {
+      const savedProfile = await updateFinancialProfile(input);
+      setProfile(savedProfile);
+    } catch (error) {
+      reportActionError("Não foi possível salvar as preferências do perfil.", error);
+      throw error;
+    }
+  }
+
+  // Persiste o orçamento base, as categorias iniciais e a conclusão do fluxo.
+  async function finishOnboarding(input: GuidedSetupInput): Promise<void> {
+    setActionError("");
+    try {
+      const data = await persistGuidedSetup(input);
+      setCategories(data.categories);
+      setProfile(data.profile);
+      setHasCompletedOnboarding(data.hasCompletedOnboarding);
+      setShouldShowOnboarding(false);
+    } catch (error) {
+      reportActionError("Não foi possível concluir a configuração inicial.", error);
+      throw error;
+    }
+  }
+
+  // Salva alterações guiadas preservando IDs, categorias não editadas e histórico.
+  async function saveGuidedSetup(input: GuidedSetupInput): Promise<void> {
+    setActionError("");
+    try {
+      const data = await persistGuidedSetup(input);
+      setCategories(data.categories);
+      setProfile(data.profile);
+      setHasCompletedOnboarding(data.hasCompletedOnboarding);
+      setShouldShowOnboarding(false);
+    } catch (error) {
+      reportActionError("Não foi possível salvar as alterações da configuração guiada.", error);
+      throw error;
+    }
   }
 
   // Insere uma transação na tela e troca sua chave temporária após a persistência.
@@ -381,7 +452,9 @@ export function useFinance(userId: string) {
 
     // Combina os filtros e ordena primeiro as datas mais recentes.
     return transactions
-      .filter((transaction) => transaction.date.startsWith(selectedMonth))
+      .filter(
+        (transaction) => showAllMonths || transaction.date.startsWith(selectedMonth),
+      )
       .filter(
         (transaction) => categoryFilter === "all" || transaction.categoryId === categoryFilter,
       )
@@ -399,7 +472,7 @@ export function useFinance(userId: string) {
           .includes(normalizedSearch);
       })
       .sort((first, second) => second.date.localeCompare(first.date));
-  }, [categories, categoryFilter, searchTerm, selectedMonth, transactions]);
+  }, [categories, categoryFilter, searchTerm, selectedMonth, showAllMonths, transactions]);
 
   // Isola as transações do mês selecionado para o Dashboard.
   const monthlyTransactions = useMemo(
@@ -407,12 +480,14 @@ export function useFinance(userId: string) {
     [selectedMonth, transactions],
   );
 
-  // Soma receitas do mês sem modificar a lista original.
+  // Soma receitas efetivamente recebidas no mês, sem incluir previsões pendentes.
   const totalIncome = useMemo(
     () =>
       monthlyTransactions.reduce(
         (total, transaction) =>
-          transaction.type === "income" ? total + transaction.amount : total,
+          transaction.type === "income" && transaction.status === "paid"
+            ? total + transaction.amount
+            : total,
         0,
       ),
     [monthlyTransactions],
@@ -463,8 +538,13 @@ export function useFinance(userId: string) {
   return {
     categories,
     transactions,
+    profile,
+    hasCompletedOnboarding,
+    shouldShowOnboarding,
     selectedMonth,
     setSelectedMonth,
+    showAllMonths,
+    setShowAllMonths,
     searchTerm,
     setSearchTerm,
     categoryFilter,
@@ -484,5 +564,8 @@ export function useFinance(userId: string) {
     editCategory,
     removeCategory,
     toggleTransactionStatus: changeTransactionStatus,
+    saveFinancialProfile,
+    finishOnboarding,
+    saveGuidedSetup,
   };
 }

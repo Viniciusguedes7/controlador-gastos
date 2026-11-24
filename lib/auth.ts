@@ -7,15 +7,6 @@ import GoogleProvider from "next-auth/providers/google";
 // Compartilha a conexão Prisma do servidor.
 import { prisma } from "./prisma";
 
-// Define categorias iniciais com cores e limites padrão para novas contas.
-const defaultCategories = [
-  { name: "Alimentação", color: "#34d399", budgetLimit: 1200 },
-  { name: "Moradia", color: "#fbbf24", budgetLimit: 1500 },
-  { name: "Lazer", color: "#a78bfa", budgetLimit: 600 },
-  { name: "Transporte", color: "#2dd4bf", budgetLimit: 400 },
-  { name: "Salário", color: "#34d399", budgetLimit: 0 },
-];
-
 // Exige credenciais OAuth para falhar com uma mensagem útil em vez de usar strings vazias.
 function requireAuthEnvironmentVariable(
   name: "GOOGLE_CLIENT_ID" | "GOOGLE_CLIENT_SECRET",
@@ -45,7 +36,7 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "database" },
   // Define a chave usada pelo NextAuth para assinar e proteger cookies.
   secret: process.env.NEXTAUTH_SECRET,
-  // Personaliza a sessão e cria os dados iniciais após a primeira conta.
+  // Personaliza os dados de sessão usados pela interface e pelas ações seguras.
   callbacks: {
     // Expõe o identificador do usuário autenticado para a interface cliente.
     async session({ session, user }) {
@@ -57,19 +48,6 @@ export const authOptions: NextAuthOptions = {
 
       // Retorna a sessão completa ao chamador.
       return session;
-    },
-  },
-  // Executa a criação inicial de categorias após o adapter persistir a nova pessoa.
-  events: {
-    // Vincula as categorias ao identificador criado pelo NextAuth.
-    async createUser({ user }) {
-      // Insere as cinco categorias em uma única operação de banco.
-      await prisma.category.createMany({
-        data: defaultCategories.map((category) => ({
-          ...category,
-          userId: user.id,
-        })),
-      });
     },
   },
 };

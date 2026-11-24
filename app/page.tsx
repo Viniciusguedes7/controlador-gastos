@@ -13,21 +13,53 @@ import TransactionsTab from "../components/TransactionsTab";
 import LoginScreen from "../components/LoginScreen";
 // Exibe os créditos e os canais de contato no rodapé da aplicação.
 import CreatorFooter from "../components/CreatorFooter";
+// Apresenta os dados pessoais e as preferências financeiras da conta.
+import ProfileTab from "../components/ProfileTab";
+import OnboardingWizard from "../components/OnboardingWizard";
 // Carrega os registros e mantém as operações otimistas do usuário.
 import { useFinance } from "../hooks/useFinance";
+import type { TransactionStatus, TransactionType } from "../types/finance";
 
 // Renderiza os dados de uma conta autenticada em uma árvore isolada.
-function FinanceApp({ userId }: { userId: string }) {
+function FinanceApp({
+  userId,
+  user,
+}: {
+  userId: string;
+  user: { name?: string | null; email?: string | null; image?: string | null };
+}) {
   // Controla qual das áreas está visível na navegação principal.
   const [activeTab, setActiveTab] = useState<FinanceTab>("dashboard");
+  // Abre a configuração guiada apenas quando a pessoa a solicita no menu.
+  const [isGuidedSetupOpen, setIsGuidedSetupOpen] = useState(false);
   // Busca dados e operações associados à identidade da sessão atual.
   const finance = useFinance(userId);
+  // Compartilha os filtros para que a Dashboard possa abrir a lista filtrada.
+  const [transactionTypeFilter, setTransactionTypeFilter] =
+    useState<"all" | TransactionType>("all");
+  const [transactionStatusFilter, setTransactionStatusFilter] =
+    useState<"all" | TransactionStatus>("all");
   // Extrai o ano do filtro mensal para orientar os intervalos do gráfico.
   const selectedYear = Number(finance.selectedMonth.slice(0, 4));
 
   // Abre a área de transações para facilitar o lançamento de uma movimentação.
   function openNewTransaction(): void {
-    // Define a aba que contém o formulário de cadastro.
+    // Abre o cadastro sem manter filtros de uma consulta anterior.
+    finance.setSearchTerm("");
+    finance.setCategoryFilter("all");
+    finance.setShowAllMonths(false);
+    setTransactionTypeFilter("all");
+    setTransactionStatusFilter("all");
+    setActiveTab("transactions");
+  }
+
+  // Abre todas as despesas pendentes, inclusive lançamentos de outros meses.
+  function openPendingExpenses(): void {
+    finance.setSearchTerm("");
+    finance.setCategoryFilter("all");
+    finance.setShowAllMonths(true);
+    setTransactionTypeFilter("expense");
+    setTransactionStatusFilter("pending");
     setActiveTab("transactions");
   }
 
@@ -39,8 +71,12 @@ function FinanceApp({ userId }: { userId: string }) {
         activeTab={activeTab}
         selectedMonth={finance.selectedMonth}
         onTabChange={setActiveTab}
-        onMonthChange={finance.setSelectedMonth}
+        onMonthChange={(month) => {
+          finance.setSelectedMonth(month);
+          finance.setShowAllMonths(false);
+        }}
         onNewTransaction={openNewTransaction}
+        onReviewTutorial={() => setIsGuidedSetupOpen(true)}
       />
       {/* Centraliza o conteúdo e limita a largura de leitura em telas grandes. */}
       <main className="mx-auto w-full min-w-0 max-w-full flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:max-w-7xl">
@@ -71,7 +107,9 @@ function FinanceApp({ userId }: { userId: string }) {
               ? "Suas finanças em um só lugar"
               : activeTab === "transactions"
                 ? "Organize suas movimentações"
-                : "Planeje seus limites"}
+                : activeTab === "categories"
+                  ? "Planeje seus limites"
+                  : "Seu perfil e planejamento"}
           </h1>
           {/* Explica como usar os dados para acompanhar o orçamento mensal. */}
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
@@ -90,8 +128,11 @@ function FinanceApp({ userId }: { userId: string }) {
             selectedMonth={finance.selectedMonth}
             selectedYear={selectedYear}
             categories={finance.categories}
+            monthlySpendingLimit={finance.profile.monthlySpendingLimit}
             onViewTransactions={() => setActiveTab("transactions")}
+            onViewPendingExpenses={openPendingExpenses}
             onToggleStatus={finance.toggleTransactionStatus}
+            onRemoveTransaction={finance.removeTransaction}
           />
         )}
 
@@ -104,6 +145,12 @@ function FinanceApp({ userId }: { userId: string }) {
             onSearchChange={finance.setSearchTerm}
             categoryFilter={finance.categoryFilter}
             onCategoryFilterChange={finance.setCategoryFilter}
+            typeFilter={transactionTypeFilter}
+            onTypeFilterChange={setTransactionTypeFilter}
+            statusFilter={transactionStatusFilter}
+            onStatusFilterChange={setTransactionStatusFilter}
+            showAllMonths={finance.showAllMonths}
+            onShowAllMonthsChange={finance.setShowAllMonths}
             selectedMonth={finance.selectedMonth}
             onAdd={finance.addTransaction}
             onEdit={finance.editTransaction}
@@ -116,9 +163,21 @@ function FinanceApp({ userId }: { userId: string }) {
         {activeTab === "categories" && (
           <CategoriesTab
             categories={finance.categories}
+            monthlySpendingLimit={finance.profile.monthlySpendingLimit}
             onAdd={finance.addCategory}
             onEdit={finance.editCategory}
             onRemove={finance.removeCategory}
+          />
+        )}
+
+        {/* Mantém os dados pessoais e as preferências fora do resumo principal. */}
+        {activeTab === "profile" && !finance.isLoading && (
+          <ProfileTab
+            user={user}
+            profile={finance.profile}
+            transactions={finance.transactions}
+            selectedMonth={finance.selectedMonth}
+            onSave={finance.saveFinancialProfile}
           />
         )}
 
@@ -129,6 +188,24 @@ function FinanceApp({ userId }: { userId: string }) {
       </main>
       {/* Mantém créditos e contato no fluxo da página, abaixo do conteúdo principal. */}
       <CreatorFooter />
+      {/* Só apresenta a configuração inicial quando a conta ainda não tem dados salvos. */}
+      {!finance.isLoading &&
+        finance.shouldShowOnboarding && (
+          <OnboardingWizard
+            initialProfile={finance.profile}
+            initialCategories={finance.categories}
+            onComplete={finance.finishOnboarding}
+          />
+        )}
+      {!finance.isLoading && isGuidedSetupOpen && (
+        <OnboardingWizard
+          mode="review"
+          initialProfile={finance.profile}
+          initialCategories={finance.categories}
+          onComplete={finance.saveGuidedSetup}
+          onClose={() => setIsGuidedSetupOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -156,5 +233,5 @@ export default function Home() {
   }
 
   // Usa o ID como chave para desmontar e limpar os dados ao trocar de conta.
-  return <FinanceApp key={session.user.id} userId={session.user.id} />;
+  return <FinanceApp key={session.user.id} userId={session.user.id} user={session.user} />;
 }
