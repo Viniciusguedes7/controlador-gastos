@@ -119,7 +119,7 @@ model Transaction {
   // Data no formato ISO simplificado YYYY-MM-DD.
   date         String
   // Estado do pagamento, por exemplo, paid ou pending.
-  status       String
+  status       String   @default("paid")
   // Indica se o lançamento representa uma recorrência.
   isRecurring  Boolean
   // Identificador obrigatório da categoria relacionada.

@@ -459,17 +459,15 @@ export default function TransactionsTab({
                     </td>
                     <td className="px-4 py-4 text-zinc-400">{formatDate(transaction.date)}</td>
                     <td className="px-4 py-4">
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(transaction)}
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                           transaction.status === "paid"
-                            ? "bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
-                            : "bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"
+                            ? "bg-emerald-400/10 text-emerald-300"
+                            : "bg-amber-400/10 text-amber-300"
                         }`}
                       >
                         {transaction.status === "paid" ? "Pago" : "Pendente"}
-                      </button>
+                      </span>
                     </td>
                     <td
                       className={`px-4 py-4 text-right font-semibold ${
@@ -481,6 +479,16 @@ export default function TransactionsTab({
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-1">
+                        {transaction.status === "pending" && (
+                          <button
+                            type="button"
+                            onClick={() => toggleStatus(transaction)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-emerald-400/10 px-2 py-2 text-xs font-medium text-emerald-300 transition hover:bg-emerald-400/20"
+                          >
+                            <Check aria-hidden="true" size={14} />
+                            Marcar como pago
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Editar ${transaction.description}`}

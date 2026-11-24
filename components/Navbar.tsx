@@ -79,25 +79,25 @@ export default function Navbar({
 
   return (
     <header className="sticky top-0 z-20 border-b border-zinc-800/90 bg-zinc-950/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
-        <div className="flex items-center justify-between gap-5">
-          <div className="flex items-center gap-3">
+      <div className="mx-auto flex w-full max-w-7xl min-w-0 flex-col gap-4 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <div className="flex size-10 items-center justify-center rounded-xl bg-violet-500 text-white shadow-lg shadow-violet-950/40">
               <WalletCards aria-hidden="true" size={21} />
             </div>
             <div>
-              <p className="text-sm font-bold tracking-tight text-white sm:text-base">
+              <p className="truncate whitespace-nowrap text-sm font-bold tracking-tight text-white sm:text-base">
                 Controlador de Gastos
               </p>
               <p className="text-xs text-zinc-500">Seu dinheiro, com mais clareza</p>
             </div>
           </div>
-          <label className="flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-zinc-300 lg:hidden">
+          <label className="flex w-full shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-zinc-800 bg-zinc-900 px-2.5 py-2 text-sm text-zinc-300 sm:w-auto sm:justify-start lg:hidden sm:px-3">
             <CalendarDays aria-hidden="true" size={16} className="text-zinc-500" />
             <span className="sr-only">Mês de referência</span>
             <input
               aria-label="Mês de referência"
-              className="w-[7.5rem] bg-transparent text-xs outline-none [color-scheme:dark]"
+              className="w-[8.25rem] max-w-full whitespace-nowrap bg-transparent text-xs outline-none [color-scheme:dark]"
               type="month"
               value={selectedMonth}
               onChange={(event) => onMonthChange(event.target.value)}
@@ -107,16 +107,16 @@ export default function Navbar({
 
         <nav
           aria-label="Navegação principal"
-          className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className="flex w-full min-w-0 flex-wrap items-center gap-2 lg:w-auto lg:flex-nowrap"
         >
-          <div className="flex min-w-max items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/80 p-1">
+          <div className="flex w-full min-w-0 items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900/80 p-1 lg:w-auto lg:flex-none">
             {navigationItems.map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
                 type="button"
                 aria-current={activeTab === id ? "page" : undefined}
                 onClick={() => onTabChange(id)}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition sm:text-sm ${
+                className={`flex min-w-0 flex-1 items-center justify-center gap-1 rounded-lg px-1.5 py-2 text-[11px] font-medium transition sm:gap-2 sm:px-3 sm:text-sm lg:flex-none ${
                   activeTab === id
                     ? "bg-zinc-800 text-white shadow-sm"
                     : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100"
@@ -142,17 +142,17 @@ export default function Navbar({
           <button
             type="button"
             onClick={onNewTransaction}
-            className="flex min-w-max items-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-400 sm:px-4 sm:text-sm"
+            className="flex w-full min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-500 px-3 py-2.5 text-xs font-semibold text-emerald-950 transition hover:bg-emerald-400 sm:w-auto sm:flex-1 sm:text-sm lg:flex-none"
           >
             <CirclePlus aria-hidden="true" size={16} />
-            <span className="hidden sm:inline">Nova transação</span>
-            <span className="sm:hidden">Nova</span>
+            <span>+ Nova transação</span>
           </button>
           {/* Mantém o seletor de tema acessível junto das ações principais. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2 sm:ml-0">
           <ThemeToggle />
           {/* Exibe controles de conta somente depois de resolver a sessão. */}
           {status !== "loading" && session?.user ? (
-            <div className="flex min-w-max items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               {/* Mostra a foto do perfil ou uma inicial quando o provedor não envia imagem. */}
               {session.user.image ? (
                 <Image
@@ -195,6 +195,7 @@ export default function Navbar({
               Entrar com Google
             </button>
           ) : null}
+          </div>
         </nav>
       </div>
     </header>

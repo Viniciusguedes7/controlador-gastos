@@ -13,7 +13,14 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
+  max-width: 100%;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
@@ -140,6 +147,23 @@ body {
 /* Atualiza a borda do cartão de despesas para um tom de rosa suave. */
 :root[data-theme="light"] [class~="border-rose-900/70"] {
   border-color: #fecdd3 !important;
+}
+
+/* Reforça o contraste dos estados financeiros coloridos no tema claro. */
+:root[data-theme="light"] [class~="text-amber-300"] {
+  color: #b45309 !important;
+}
+
+:root[data-theme="light"] [class~="text-emerald-300"] {
+  color: #047857 !important;
+}
+
+:root[data-theme="light"] [class~="text-rose-300"] {
+  color: #be123c !important;
+}
+
+:root[data-theme="light"] [class~="text-violet-300"] {
+  color: #6d28d9 !important;
 }
 
 /* Define o esquema claro para campos de mês e data do navegador. */

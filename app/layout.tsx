@@ -29,10 +29,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full max-w-full overflow-x-hidden antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full max-w-full overflow-x-hidden flex flex-col">
         {/* Compartilha autenticação e tema sem adicionar lógica a cada página. */}
         <AuthProvider>
           <ThemeProvider>{children}</ThemeProvider>

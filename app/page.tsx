@@ -43,7 +43,7 @@ function FinanceApp({ userId }: { userId: string }) {
         onNewTransaction={openNewTransaction}
       />
       {/* Centraliza o conteúdo e limita a largura de leitura em telas grandes. */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <main className="mx-auto w-full min-w-0 max-w-full flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:max-w-7xl">
         {/* Explica ao usuário que os dados estão sendo carregados do PostgreSQL. */}
         {finance.isLoading && (
           <p role="status" className="mb-5 text-sm text-zinc-400">
@@ -91,6 +91,7 @@ function FinanceApp({ userId }: { userId: string }) {
             selectedYear={selectedYear}
             categories={finance.categories}
             onViewTransactions={() => setActiveTab("transactions")}
+            onToggleStatus={finance.toggleTransactionStatus}
           />
         )}
 

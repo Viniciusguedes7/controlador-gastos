@@ -177,7 +177,7 @@ export default function ComparisonChart({
   return (
     <section
       aria-labelledby="comparison-chart-title"
-      className="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6"
+      className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6"
     >
       {/* Apresenta o título e o seletor sem competir com os dados do gráfico. */}
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -268,12 +268,9 @@ export default function ComparisonChart({
       )}
 
       {/* Mantém o gráfico dentro do card e permite rolagem horizontal em telas estreitas. */}
-      <div className="mt-5 overflow-x-auto pb-2">
+      <div className="mt-5 w-full min-w-0 max-w-full overflow-hidden pb-2">
         {hasTransactions ? (
-          <div
-            className="relative"
-            style={{ minWidth: `${monthlyData.length * 40}px` }}
-          >
+          <div className="relative w-full min-w-0">
             {/* Desenha linhas de referência sutis atrás das barras mensais. */}
             <div
               aria-hidden="true"
@@ -330,11 +327,11 @@ export default function ComparisonChart({
                       className="flex h-32 w-full items-end justify-center gap-1"
                     >
                       <span
-                        className="w-3 rounded-t-sm bg-emerald-500 transition-[height] duration-300"
+                        className="w-2 rounded-t-sm bg-emerald-500 transition-[height] duration-300 sm:w-3"
                         style={{ height: `${incomeHeight}%` }}
                       />
                       <span
-                        className="w-3 rounded-t-sm bg-rose-500 transition-[height] duration-300"
+                        className="w-2 rounded-t-sm bg-rose-500 transition-[height] duration-300 sm:w-3"
                         style={{ height: `${expensesHeight}%` }}
                       />
                     </span>
