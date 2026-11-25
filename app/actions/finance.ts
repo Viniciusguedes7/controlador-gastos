@@ -17,6 +17,7 @@ import type {
   FinanceData,
   FinancialProfile,
   GuidedSetupInput,
+  PaymentMethod,
   Transaction,
   TransactionStatus,
   TransactionType,
@@ -82,11 +83,15 @@ function mapTransaction(record: {
   status: string;
   isRecurring: boolean;
   categoryId: string;
+  paymentMethod: string;
 }): Transaction {
   // Recusa valores fora dos contratos conhecidos pela interface e pelos cálculos.
   if (
     (record.type !== "income" && record.type !== "expense") ||
-    (record.status !== "paid" && record.status !== "pending")
+    (record.status !== "paid" && record.status !== "pending") ||
+    (record.paymentMethod !== "credit" &&
+      record.paymentMethod !== "debit" &&
+      record.paymentMethod !== "cash")
   ) {
     throw new Error("Uma transação armazenada contém tipo ou situação inválidos.");
   }
@@ -101,6 +106,7 @@ function mapTransaction(record: {
     status: record.status as TransactionStatus,
     isRecurring: record.isRecurring,
     categoryId: record.categoryId,
+    paymentMethod: record.paymentMethod as PaymentMethod,
   };
 }
 
@@ -134,6 +140,14 @@ function validateTransaction(input: TransactionInput): void {
   // Evita gravar situações não reconhecidas pelos filtros e indicadores.
   if (input.status !== "paid" && input.status !== "pending") {
     throw new Error("Selecione uma situação de pagamento válida.");
+  }
+
+  if (
+    input.paymentMethod !== "credit" &&
+    input.paymentMethod !== "debit" &&
+    input.paymentMethod !== "cash"
+  ) {
+    throw new Error("Selecione uma forma de pagamento válida.");
   }
 
   // Confere que a recorrência seja explicitamente booleana.
@@ -252,6 +266,7 @@ export async function getFinanceData(localToday: string): Promise<FinanceData> {
           status: true,
           isRecurring: true,
           categoryId: true,
+          paymentMethod: true,
         },
       }),
       database.user.findUnique({
@@ -502,6 +517,7 @@ export async function updateTransaction(input: Transaction): Promise<Transaction
       status: input.status,
       isRecurring: input.isRecurring,
       categoryId: input.categoryId,
+      paymentMethod: input.paymentMethod,
     },
   });
 

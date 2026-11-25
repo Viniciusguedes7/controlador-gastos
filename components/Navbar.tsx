@@ -8,6 +8,7 @@
 import {
   BookOpenText,
   ChartNoAxesCombined,
+  ChartPie,
   CirclePlus,
   Layers3,
   LogOut,
@@ -39,13 +40,17 @@ interface NavbarProps {
   onMonthChange: (month: string) => void;
   /** Atalho para abrir o formulário de uma nova transação. */
   onNewTransaction: () => void;
+  /** Abre o lançamento compacto sem sair da tela atual. */
+  onOpenQuickTransaction: () => void;
+  /** Abre os indicadores do mês selecionado. */
+  onOpenMonthlyInsights: () => void;
   /** Abre a configuração guiada com os dados financeiros atuais. */
   onReviewTutorial: () => void;
 }
 
 /** Descreve os botões de navegação para evitar repetir a marcação. */
 const navigationItems: { id: FinanceTab; label: string; icon: typeof ChartNoAxesCombined }[] = [
-  { id: "dashboard", label: "Dashboard", icon: ChartNoAxesCombined },
+  { id: "dashboard", label: "Visão geral", icon: ChartNoAxesCombined },
   { id: "transactions", label: "Transações", icon: WalletCards },
   { id: "categories", label: "Categorias", icon: Layers3 },
 ];
@@ -57,6 +62,8 @@ export default function Navbar({
   onTabChange,
   onMonthChange,
   onNewTransaction,
+  onOpenQuickTransaction,
+  onOpenMonthlyInsights,
   onReviewTutorial,
 }: NavbarProps) {
   // Consulta a sessão do usuário atual para exibir login ou perfil.
@@ -301,6 +308,28 @@ export default function Navbar({
               <button
                 type="button"
                 onClick={() => {
+                  onOpenQuickTransaction();
+                  closeMenu();
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <CirclePlus aria-hidden="true" size={18} />
+                Transação rápida
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onOpenMonthlyInsights();
+                  closeMenu();
+                }}
+                className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              >
+                <ChartPie aria-hidden="true" size={18} />
+                Insights do mês
+              </button>
+              <button
+                type="button"
+                onClick={() => {
                   setIsMenuOpen(false);
                   setIsHelpOpen(true);
                 }}
@@ -371,7 +400,7 @@ export default function Navbar({
             <ul className="mt-5 space-y-3 text-sm leading-6 text-zinc-300">
               <li><strong className="text-zinc-100">Transações:</strong> registre receitas e despesas com data, categoria e situação paga ou pendente.</li>
               <li><strong className="text-zinc-100">Categorias:</strong> organize os lançamentos e defina limites mensais por grupo.</li>
-              <li><strong className="text-zinc-100">Dashboard:</strong> acompanhe o resumo do mês, os gastos por categoria e as análises históricas.</li>
+              <li><strong className="text-zinc-100">Visão geral:</strong> acompanhe o resumo do mês, os gastos por categoria e as análises históricas.</li>
               <li><strong className="text-zinc-100">Orçamento:</strong> o limite pessoal do Perfil orienta o resumo mensal; sem ele, o app usa a soma dos limites das categorias e, por fim, as receitas registradas.</li>
               <li><strong className="text-zinc-100">Dados:</strong> cada conta vê seus próprios registros; marcar uma despesa como paga não altera o valor nem a data.</li>
             </ul>

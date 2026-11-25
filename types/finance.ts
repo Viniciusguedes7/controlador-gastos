@@ -9,6 +9,9 @@ export type TransactionType = "income" | "expense";
 /** Indica se a movimentação já foi concluída ou ainda está prevista. */
 export type TransactionStatus = "paid" | "pending";
 
+/** Forma usada para pagar ou receber a movimentação. */
+export type PaymentMethod = "credit" | "debit" | "cash";
+
 /** Representa uma categoria e seu limite planejado para o mês. */
 export interface Category {
   /** Identificador único usado nas relações com as transações. */
@@ -37,6 +40,8 @@ export interface Transaction {
   date: string;
   /** Situação de pagamento da movimentação. */
   status: TransactionStatus;
+  /** Forma de pagamento; registros anteriores usam débito por padrão. */
+  paymentMethod: PaymentMethod;
   /** Indica se o lançamento deve ser considerado recorrente. */
   isRecurring: boolean;
 }

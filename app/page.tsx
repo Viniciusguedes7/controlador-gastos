@@ -16,9 +16,11 @@ import CreatorFooter from "../components/CreatorFooter";
 // Apresenta os dados pessoais e as preferências financeiras da conta.
 import ProfileTab from "../components/ProfileTab";
 import OnboardingWizard from "../components/OnboardingWizard";
+import QuickTransactionModal from "../components/QuickTransactionModal";
+import MonthlyInsightsModal from "../components/MonthlyInsightsModal";
 // Carrega os registros e mantém as operações otimistas do usuário.
 import { useFinance } from "../hooks/useFinance";
-import type { TransactionStatus, TransactionType } from "../types/finance";
+import type { PaymentMethod, TransactionStatus, TransactionType } from "../types/finance";
 
 // Renderiza os dados de uma conta autenticada em uma árvore isolada.
 function FinanceApp({
@@ -32,6 +34,8 @@ function FinanceApp({
   const [activeTab, setActiveTab] = useState<FinanceTab>("dashboard");
   // Abre a configuração guiada apenas quando a pessoa a solicita no menu.
   const [isGuidedSetupOpen, setIsGuidedSetupOpen] = useState(false);
+  const [isQuickTransactionOpen, setIsQuickTransactionOpen] = useState(false);
+  const [isMonthlyInsightsOpen, setIsMonthlyInsightsOpen] = useState(false);
   // Busca dados e operações associados à identidade da sessão atual.
   const finance = useFinance(userId);
   // Compartilha os filtros para que a Dashboard possa abrir a lista filtrada.
@@ -39,6 +43,8 @@ function FinanceApp({
     useState<"all" | TransactionType>("all");
   const [transactionStatusFilter, setTransactionStatusFilter] =
     useState<"all" | TransactionStatus>("all");
+  const [paymentMethodFilter, setPaymentMethodFilter] =
+    useState<"all" | PaymentMethod>("all");
   // Extrai o ano do filtro mensal para orientar os intervalos do gráfico.
   const selectedYear = Number(finance.selectedMonth.slice(0, 4));
 
@@ -50,6 +56,7 @@ function FinanceApp({
     finance.setShowAllMonths(false);
     setTransactionTypeFilter("all");
     setTransactionStatusFilter("all");
+    setPaymentMethodFilter("all");
     setActiveTab("transactions");
   }
 
@@ -76,6 +83,8 @@ function FinanceApp({
           finance.setShowAllMonths(false);
         }}
         onNewTransaction={openNewTransaction}
+        onOpenQuickTransaction={() => setIsQuickTransactionOpen(true)}
+        onOpenMonthlyInsights={() => setIsMonthlyInsightsOpen(true)}
         onReviewTutorial={() => setIsGuidedSetupOpen(true)}
       />
       {/* Centraliza o conteúdo e limita a largura de leitura em telas grandes. */}
@@ -99,12 +108,12 @@ function FinanceApp({
         <div className="mb-6">
           {/* Identifica a seção financeira a que o título pertence. */}
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">
-            Visão geral
+            Seu painel financeiro
           </p>
           {/* Atualiza o título conforme a área aberta pelo usuário. */}
           <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
             {activeTab === "dashboard"
-              ? "Suas finanças em um só lugar"
+              ? "Visão geral"
               : activeTab === "transactions"
                 ? "Organize suas movimentações"
                 : activeTab === "categories"
@@ -149,6 +158,8 @@ function FinanceApp({
             onTypeFilterChange={setTransactionTypeFilter}
             statusFilter={transactionStatusFilter}
             onStatusFilterChange={setTransactionStatusFilter}
+            paymentMethodFilter={paymentMethodFilter}
+            onPaymentMethodFilterChange={setPaymentMethodFilter}
             showAllMonths={finance.showAllMonths}
             onShowAllMonthsChange={finance.setShowAllMonths}
             selectedMonth={finance.selectedMonth}
@@ -204,6 +215,22 @@ function FinanceApp({
           initialCategories={finance.categories}
           onComplete={finance.saveGuidedSetup}
           onClose={() => setIsGuidedSetupOpen(false)}
+        />
+      )}
+      {isQuickTransactionOpen && (
+        <QuickTransactionModal
+          categories={finance.categories}
+          onClose={() => setIsQuickTransactionOpen(false)}
+          onAdd={finance.addTransaction}
+        />
+      )}
+      {isMonthlyInsightsOpen && (
+        <MonthlyInsightsModal
+          transactions={finance.transactions}
+          categories={finance.categories}
+          selectedMonth={finance.selectedMonth}
+          monthlySpendingLimit={finance.profile.monthlySpendingLimit}
+          onClose={() => setIsMonthlyInsightsOpen(false)}
         />
       )}
     </div>

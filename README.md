@@ -33,15 +33,21 @@ controle de versão.
 
 ## Preparar o banco e executar
 
-Instale as dependências, gere o cliente Prisma, crie as tabelas e inicie o
+Instale as dependências, gere o cliente Prisma, sincronize o schema e inicie o
 servidor:
 
 ```bash
 npm install
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma db push
 npm run dev
 ```
+
+O schema não possui migrations versionadas; `db push` cria as tabelas em um banco
+novo e adiciona alterações compatíveis ao banco existente. A forma de pagamento
+foi adicionada com o valor padrão `debit`, sem substituir ou excluir transações,
+categorias ou outros dados já salvos. Para sincronizar o schema em produção,
+revise a alteração e execute `npx prisma db push` durante a implantação.
 
 Abra [http://localhost:3000](http://localhost:3000) no navegador. No primeiro
 login de cada usuário, são criadas cinco categorias iniciais. Todas as consultas
@@ -52,10 +58,4 @@ Para inspecionar os registros localmente, use:
 
 ```bash
 npx prisma studio
-```
-
-Em produção, aplique as migrations já versionadas com:
-
-```bash
-npx prisma migrate deploy
 ```

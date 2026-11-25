@@ -8,6 +8,7 @@ import { useState, type FormEvent } from "react";
 import { Check, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import type {
   Category,
+  PaymentMethod,
   Transaction,
   TransactionStatus,
   TransactionType,
@@ -32,6 +33,8 @@ interface TransactionFormValues {
   status: TransactionStatus;
   /** Opção para identificar uma movimentação recorrente. */
   isRecurring: boolean;
+  /** Forma de pagamento selecionada. */
+  paymentMethod: PaymentMethod;
 }
 
 /** Propriedades para compartilhar os dados e as operações do hook. */
@@ -53,6 +56,8 @@ interface TransactionsTabProps {
   onTypeFilterChange: (value: "all" | TransactionType) => void;
   statusFilter: "all" | TransactionStatus;
   onStatusFilterChange: (value: "all" | TransactionStatus) => void;
+  paymentMethodFilter: "all" | PaymentMethod;
+  onPaymentMethodFilterChange: (value: "all" | PaymentMethod) => void;
   showAllMonths: boolean;
   onShowAllMonthsChange: (showAllMonths: boolean) => void;
   /** Período global no formato YYYY-MM. */
@@ -95,6 +100,8 @@ export default function TransactionsTab({
   onTypeFilterChange,
   statusFilter,
   onStatusFilterChange,
+  paymentMethodFilter,
+  onPaymentMethodFilterChange,
   showAllMonths,
   onShowAllMonthsChange,
   selectedMonth,
@@ -115,15 +122,23 @@ export default function TransactionsTab({
   const [hasManuallySelectedCategory, setHasManuallySelectedCategory] = useState(false);
   /** Controla o aviso de validação visível junto ao formulário. */
   const [formError, setFormError] = useState("");
+  /** Exige uma confirmação separada antes de salvar Salário como despesa. */
+  const [salaryExpenseConfirmationPending, setSalaryExpenseConfirmationPending] = useState(false);
+  const [salaryExpenseConfirmed, setSalaryExpenseConfirmed] = useState(false);
   /** Mantém os campos do formulário sincronizados com a digitação. */
   const [formValues, setFormValues] = useState<TransactionFormValues>(() => ({
     description: "",
     amount: "",
-    type: "expense",
+    type:
+      defaultExpenseCategory &&
+      isSalaryCategoryName(defaultExpenseCategory.name)
+        ? "income"
+        : "expense",
     categoryId: defaultExpenseCategory?.id ?? "",
     date: null,
     status: "paid",
     isRecurring: false,
+    paymentMethod: "debit",
   }));
 
   /** Pré-preenche apenas novos lançamentos ainda sem data selecionada. */
@@ -156,18 +171,43 @@ export default function TransactionsTab({
     setFormValues({
       description: "",
       amount: "",
-      type: "expense",
+      type:
+        defaultExpenseCategory &&
+        isSalaryCategoryName(defaultExpenseCategory.name)
+          ? "income"
+          : "expense",
       categoryId: defaultExpenseCategory?.id ?? "",
       date: null,
       status: "paid",
       isRecurring: false,
+      paymentMethod: "debit",
     });
     setHasManuallySelectedCategory(false);
+    setSalaryExpenseConfirmationPending(false);
+    setSalaryExpenseConfirmed(false);
   }
 
   /** Prefere Salário ao alternar para receita, salvo escolha manual anterior. */
   function changeTransactionType(type: TransactionType): void {
+    const selectedCategory = categories.find(
+      (category) => category.id === effectiveCategoryId,
+    );
+    if (
+      type === "expense" &&
+      selectedCategory &&
+      isSalaryCategoryName(selectedCategory.name)
+    ) {
+      setSalaryExpenseConfirmationPending(true);
+      setSalaryExpenseConfirmed(false);
+      setFormError(
+        "A categoria Salário normalmente representa uma entrada. Confirme explicitamente se deseja registrá-la como despesa.",
+      );
+      return;
+    }
+
     updateFormValue("type", type);
+    setSalaryExpenseConfirmationPending(false);
+    setSalaryExpenseConfirmed(false);
     if (!hasManuallySelectedCategory) {
       updateFormValue(
         "categoryId",
@@ -191,7 +231,10 @@ export default function TransactionsTab({
       date: transaction.date,
       status: transaction.status,
       isRecurring: transaction.isRecurring,
+      paymentMethod: transaction.paymentMethod,
     });
+    setSalaryExpenseConfirmationPending(false);
+    setSalaryExpenseConfirmed(false);
     document.getElementById("transaction-form")?.scrollIntoView({ behavior: "smooth" });
   }
 
@@ -215,6 +258,20 @@ export default function TransactionsTab({
       return;
     }
 
+    const selectedCategory = categories.find(
+      (category) => category.id === effectiveCategoryId,
+    );
+    if (
+      selectedCategory &&
+      isSalaryCategoryName(selectedCategory.name) &&
+      formValues.type === "expense" &&
+      !salaryExpenseConfirmed
+    ) {
+      setFormError("Confirme que deseja salvar a categoria Salário como despesa.");
+      setSalaryExpenseConfirmationPending(true);
+      return;
+    }
+
     if (!effectiveDate) {
       setFormError("Selecione uma data para a transação.");
       return;
@@ -228,6 +285,7 @@ export default function TransactionsTab({
       date: effectiveDate,
       status: formValues.status,
       isRecurring: formValues.isRecurring,
+      paymentMethod: formValues.paymentMethod,
     };
 
     if (editingId) {
@@ -257,7 +315,9 @@ export default function TransactionsTab({
   const visibleTransactions = transactions.filter(
     (transaction) =>
       (typeFilter === "all" || transaction.type === typeFilter) &&
-      (statusFilter === "all" || transaction.status === statusFilter),
+      (statusFilter === "all" || transaction.status === statusFilter) &&
+      (paymentMethodFilter === "all" ||
+        transaction.paymentMethod === paymentMethodFilter),
   );
   const categoryOptions: CustomSelectOption[] = categories.map((category) => ({
     value: category.id,
@@ -318,6 +378,34 @@ export default function TransactionsTab({
     { value: "paid", label: "Pagas", color: "#34d399" },
     { value: "pending", label: "Pendentes", color: "#fbbf24" },
   ];
+  const paymentMethodOptions: CustomSelectOption[] = [
+    { value: "credit", label: "Crédito", color: "#a78bfa" },
+    { value: "debit", label: "Débito", color: "#38bdf8" },
+    { value: "cash", label: "Dinheiro", color: "#34d399" },
+  ];
+  const paymentMethodFilterOptions: CustomSelectOption[] = [
+    { value: "all", label: "Todas as formas" },
+    ...paymentMethodOptions,
+  ];
+  const paymentMethodLabels: Record<PaymentMethod, string> = {
+    credit: "Crédito",
+    debit: "Débito",
+    cash: "Dinheiro",
+  };
+  const paymentMethodTotals = paymentMethodOptions.map((option) => {
+    const method = option.value as PaymentMethod;
+    const methodTransactions = visibleTransactions.filter(
+      (transaction) => transaction.paymentMethod === method,
+    );
+    return {
+      ...option,
+      count: methodTransactions.length,
+      amount: methodTransactions.reduce(
+        (total, transaction) => total + transaction.amount,
+        0,
+      ),
+    };
+  });
 
   /** Alterna o estado de pagamento de um item sem alterar os demais dados. */
   function toggleStatus(transaction: Transaction): void {
@@ -400,6 +488,16 @@ export default function TransactionsTab({
               onChange={(value) => {
                 setHasManuallySelectedCategory(true);
                 updateFormValue("categoryId", value);
+                const category = categories.find((item) => item.id === value);
+                if (category && isSalaryCategoryName(category.name)) {
+                  updateFormValue("type", "income");
+                  setSalaryExpenseConfirmationPending(false);
+                  setSalaryExpenseConfirmed(false);
+                  setFormError("");
+                } else {
+                  setSalaryExpenseConfirmationPending(false);
+                  setSalaryExpenseConfirmed(false);
+                }
               }}
               placeholder="Selecione uma categoria"
             />
@@ -419,6 +517,17 @@ export default function TransactionsTab({
               value={formValues.status}
               options={paymentOptions}
               onChange={(value) => updateFormValue("status", value as TransactionStatus)}
+            />
+          </label>
+          <label className="text-xs font-medium text-zinc-400">
+            Forma de pagamento
+            <CustomSelect
+              ariaLabel="Forma de pagamento"
+              value={formValues.paymentMethod}
+              options={paymentMethodOptions}
+              onChange={(value) =>
+                updateFormValue("paymentMethod", value as PaymentMethod)
+              }
             />
           </label>
           <div className="flex items-end justify-between gap-4 sm:col-span-2 lg:col-span-4">
@@ -443,6 +552,25 @@ export default function TransactionsTab({
             <p role="alert" className="text-sm text-rose-300 sm:col-span-2 lg:col-span-4">
               {formError}
             </p>
+          )}
+          {salaryExpenseConfirmationPending && (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-700/60 bg-amber-950/30 p-3 text-sm text-amber-200 sm:col-span-2 lg:col-span-4">
+              <span>
+                Confirme que reconhece que esta movimentação será registrada como uma despesa na categoria Salário.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  updateFormValue("type", "expense");
+                  setSalaryExpenseConfirmationPending(false);
+                  setSalaryExpenseConfirmed(true);
+                  setFormError("");
+                }}
+                className="rounded-lg border border-amber-500/60 px-3 py-2 font-semibold transition hover:bg-amber-400/10"
+              >
+                Confirmar despesa
+              </button>
+            </div>
           )}
         </form>
       </section>
@@ -502,15 +630,44 @@ export default function TransactionsTab({
               className="mt-0"
             />
           </div>
+          <div className="min-w-0 sm:w-40">
+            <CustomSelect
+              ariaLabel="Filtrar por forma de pagamento"
+              value={paymentMethodFilter}
+              options={paymentMethodFilterOptions}
+              onChange={(value) =>
+                onPaymentMethodFilterChange(value as "all" | PaymentMethod)
+              }
+              className="mt-0"
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 border-b border-zinc-800 p-4 sm:grid-cols-3">
+          {paymentMethodTotals.map(({ value, label, color, count, amount }) => (
+            <article
+              key={value}
+              className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3"
+            >
+              <p className="text-xs font-medium" style={{ color }}>{label}</p>
+              <p className="mt-1 text-sm font-semibold text-zinc-100">
+                {currencyFormatter.format(amount)}
+              </p>
+              <p className="mt-1 text-xs text-zinc-500">
+                {count} {count === 1 ? "transação" : "transações"}
+              </p>
+            </article>
+          ))}
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead className="bg-zinc-950/50 text-xs uppercase tracking-wide text-zinc-500">
               <tr>
                 <th scope="col" className="px-5 py-3 font-medium">Descrição</th>
                 <th scope="col" className="px-4 py-3 font-medium">Categoria</th>
                 <th scope="col" className="px-4 py-3 font-medium">Data</th>
+                <th scope="col" className="px-4 py-3 font-medium">Forma de pagamento</th>
                 <th scope="col" className="px-4 py-3 font-medium">Situação</th>
                 <th scope="col" className="px-4 py-3 text-right font-medium">Valor</th>
                 <th scope="col" className="px-5 py-3 text-right font-medium">Ações</th>
@@ -551,6 +708,9 @@ export default function TransactionsTab({
                       </span>
                     </td>
                     <td className="px-4 py-4 text-zinc-400">{formatDate(transaction.date)}</td>
+                    <td className="px-4 py-4 text-zinc-300">
+                      {paymentMethodLabels[transaction.paymentMethod]}
+                    </td>
                     <td className="px-4 py-4">
                       <span
                         className={`rounded-full px-2.5 py-1 text-xs font-medium ${
